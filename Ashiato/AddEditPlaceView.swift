@@ -271,7 +271,15 @@ struct AddEditPlaceView: View {
             hasEndDate = p.visitEndDate != nil
             selectedIDs = Set(p.visitorIDList)
         } else {
-            if members.count == 1, let id = members[0].id { selectedIDs = [id] }
+            // 「行った人」は前回の選択を初期値にする(存在するメンバーのみ)
+            let last = UserDefaults.standard.stringArray(forKey: "lastVisitorIDs") ?? []
+            let validIDs = Set(members.compactMap(\.id))
+            let restored = Set(last.compactMap(UUID.init(uuidString:))).intersection(validIDs)
+            if !restored.isEmpty {
+                selectedIDs = restored
+            } else if members.count == 1, let id = members[0].id {
+                selectedIDs = [id]
+            }
             // 検索候補から来た場合はその名前を優先
             if !initialName.isEmpty { name = initialName }
             // 逆ジオコーディングで名前(未設定時)と国内/海外を推定
@@ -299,6 +307,10 @@ struct AddEditPlaceView: View {
         p.visitDate = hasDate ? visitDate : nil
         p.visitEndDate = (hasDate && hasEndDate) ? visitEndDate : nil
         p.visitorIDList = Array(selectedIDs)
+        // 次回の初期選択用に記憶(新規登録時のみ)
+        if place == nil {
+            UserDefaults.standard.set(selectedIDs.map(\.uuidString), forKey: "lastVisitorIDs")
+        }
 
         let now = Date()
         // コメント(無料)
