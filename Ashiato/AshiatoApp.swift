@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreData
 
 @main
 struct AshiatoApp: App {

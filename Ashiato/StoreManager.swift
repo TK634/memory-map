@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import StoreKit
 
 /// StoreKit 2 でサブスク(プレミアム)を管理する。

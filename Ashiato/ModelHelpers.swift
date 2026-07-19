@@ -85,9 +85,6 @@ extension Attachment {
     var commentText: String { comment ?? "" }
 }
 
-// `.sheet(item:)` で Place を直接渡すため Identifiable に準拠(id は UUID?)
-extension Place: Identifiable {}
-
 // MARK: - フィルター
 
 enum RegionFilter: String, CaseIterable, Identifiable {
