@@ -117,6 +117,7 @@ struct OnboardingView: View {
 
 struct HelpView: View {
     @Environment(\.dismiss) private var dismiss
+    var onReplayTutorial: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -142,6 +143,17 @@ struct HelpView: View {
                 Section("共有") {
                     helpRow("person.2", "メンバー登録", "人型ボタンから追加。名前と色を設定できます。")
                     helpRow("square.and.arrow.up", "iCloudで共有", "共有ボタンから招待リンクを送信。相手も同じ地図を編集できます。")
+                }
+                if let onReplayTutorial {
+                    Section {
+                        Button {
+                            onReplayTutorial()
+                            dismiss()
+                        } label: {
+                            Label("チュートリアルをもう一度見る", systemImage: "play.circle.fill")
+                                .foregroundStyle(AppPalette.accent)
+                        }
+                    }
                 }
             }
             .navigationTitle("使い方")

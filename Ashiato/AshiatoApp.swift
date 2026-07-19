@@ -11,6 +11,8 @@ struct AshiatoApp: App {
             ContentView()
                 .environment(\.managedObjectContext, persistence.container.viewContext)
                 .environmentObject(store)
+                .fontDesign(.rounded)          // 全体を丸みのあるフォントに
+                .tint(AppPalette.accent)       // アクセントカラーで統一
         }
     }
 }

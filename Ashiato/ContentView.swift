@@ -29,6 +29,7 @@ struct ContentView: View {
     @State private var searchResults: [MKMapItem] = []
     @State private var showHelp = false
     @State private var showOnboarding = false
+    @State private var replayTutorial = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     private var log: TravelLog { PersistenceController.shared.fetchOrCreateLog(in: context) }
@@ -39,64 +40,123 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .top) {
-                mapLayer
-                VStack(spacing: 8) {
-                    searchBar
-                    filterBar
+        ZStack(alignment: .top) {
+            mapLayer
+            VStack(spacing: 8) {
+                header
+                searchBar
+                filterBar
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+        }
+        .overlay(alignment: .bottom) { bottomBar }
+        .onAppear {
+            if !hasSeenOnboarding { showOnboarding = true }
+        }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingView {
+                hasSeenOnboarding = true
+                showOnboarding = false
+            }
+        }
+        .sheet(isPresented: $showHelp, onDismiss: {
+            if replayTutorial { replayTutorial = false; showOnboarding = true }
+        }) {
+            HelpView { replayTutorial = true }
+        }
+        .sheet(item: $addCoordinate) { coord in
+            AddEditPlaceView(log: log, coordinate: coord, place: nil, members: members)
+        }
+        .sheet(item: $editingPlace) { place in
+            AddEditPlaceView(log: log,
+                             coordinate: .init(latitude: place.latitude, longitude: place.longitude),
+                             place: place, members: members)
+        }
+        .sheet(isPresented: $showMembers) { MembersView(log: log) }
+        .sheet(isPresented: $showRanking) {
+            RankingView(places: allPlaces.map { $0 }, members: members, filter: filter)
+        }
+        .sheet(isPresented: $showList) {
+            PlacesListView(places: filtered, members: members) { p in
+                showList = false
+                camera = .region(MKCoordinateRegion(
+                    center: .init(latitude: p.latitude, longitude: p.longitude),
+                    latitudeDelta: 1.2, longitudeDelta: 1.2))
+            }
+        }
+        .sheet(isPresented: $showShare) {
+            if let info = shareInfo {
+                CloudSharingView(share: info.0, container: info.1)
+            }
+        }
+    }
+
+    // MARK: - オリジナルヘッダー(ロゴ)
+
+    private var header: some View {
+        HStack {
+            HStack(spacing: 7) {
+                Image(systemName: "shoeprints.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(7)
+                    .background(AppPalette.accent, in: Circle())
+                Text("あしあと")
+                    .font(.title3.bold())
+                    .foregroundStyle(AppPalette.chrome)
+            }
+            .padding(.leading, 8).padding(.trailing, 14).padding(.vertical, 6)
+            .background(.regularMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+            Spacer()
+        }
+    }
+
+    // MARK: - フローティングメニューバー
+
+    private var bottomBar: some View {
+        HStack(spacing: 0) {
+            barButton("list.bullet", "一覧") { showList = true }
+            barButton("trophy.fill", "ランキング") { showRanking = true }
+            // 中央の共有ボタンだけ大きく強調
+            Button { Task { await prepareShare() } } label: {
+                VStack(spacing: 3) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 46, height: 46)
+                        .background(AppPalette.accent, in: Circle())
+                        .shadow(color: AppPalette.accent.opacity(0.4), radius: 5, y: 2)
+                    Text("共有")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(AppPalette.chrome)
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
+                .frame(maxWidth: .infinity)
             }
-            .navigationTitle("あしあと")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { showRanking = true } label: { Image(systemName: "trophy") }
-                    Button { showMembers = true } label: { Image(systemName: "person.2") }
-                    Button { Task { await prepareShare() } } label: { Image(systemName: "square.and.arrow.up") }
-                }
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    Button { showList = true } label: { Image(systemName: "list.bullet") }
-                    Button { showHelp = true } label: { Image(systemName: "questionmark.circle") }
-                }
+            .offset(y: -8)
+            barButton("person.2.fill", "メンバー") { showMembers = true }
+            barButton("questionmark.circle.fill", "使い方") { showHelp = true }
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26))
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 6)
+    }
+
+    private func barButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 19, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 10, weight: .bold))
             }
-            .onAppear {
-                if !hasSeenOnboarding { showOnboarding = true }
-            }
-            .sheet(isPresented: $showOnboarding) {
-                OnboardingView {
-                    hasSeenOnboarding = true
-                    showOnboarding = false
-                }
-            }
-            .sheet(isPresented: $showHelp) { HelpView() }
-            .sheet(item: $addCoordinate) { coord in
-                AddEditPlaceView(log: log, coordinate: coord, place: nil, members: members)
-            }
-            .sheet(item: $editingPlace) { place in
-                AddEditPlaceView(log: log,
-                                 coordinate: .init(latitude: place.latitude, longitude: place.longitude),
-                                 place: place, members: members)
-            }
-            .sheet(isPresented: $showMembers) { MembersView(log: log) }
-            .sheet(isPresented: $showRanking) {
-                RankingView(places: allPlaces.map { $0 }, members: members, filter: filter)
-            }
-            .sheet(isPresented: $showList) {
-                PlacesListView(places: filtered, members: members) { p in
-                    showList = false
-                    camera = .region(MKCoordinateRegion(
-                        center: .init(latitude: p.latitude, longitude: p.longitude),
-                        latitudeDelta: 1.2, longitudeDelta: 1.2))
-                }
-            }
-            .sheet(isPresented: $showShare) {
-                if let info = shareInfo {
-                    CloudSharingView(share: info.0, container: info.1)
-                }
-            }
+            .foregroundStyle(AppPalette.chrome)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -210,7 +270,7 @@ struct ContentView: View {
                     }
                     .font(.caption.bold())
                     .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(filter.year == nil ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(AppPalette.chrome))
+                    .background(filter.year == nil ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(AppPalette.accent))
                     .foregroundStyle(filter.year == nil ? .primary : Color.white)
                     .clipShape(Capsule())
                 }
@@ -226,7 +286,7 @@ struct ContentView: View {
             }
             .font(.caption.bold())
             .padding(.horizontal, 10).padding(.vertical, 6)
-            .background(active ? AnyShapeStyle(AppPalette.chrome) : AnyShapeStyle(.regularMaterial))
+            .background(active ? AnyShapeStyle(AppPalette.accent) : AnyShapeStyle(.regularMaterial))
             .foregroundStyle(active ? Color.white : .primary)
             .clipShape(Capsule())
         }
