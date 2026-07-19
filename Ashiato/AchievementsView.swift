@@ -10,6 +10,8 @@ struct AchievementsView: View {
     let prefRegions: [GeoRegion]
     let countryRegions: [GeoRegion]
 
+    @State private var shareImage: Image?
+
     // MARK: - 集計
 
     private var japanCoords: [CLLocationCoordinate2D] {
@@ -73,7 +75,31 @@ struct AchievementsView: View {
             .background(Color(hex: "FFF8EF"))
             .navigationTitle("実績")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("閉じる") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if let shareImage {
+                        ShareLink(item: shareImage,
+                                  preview: SharePreview("あしあと 制県レベル", image: shareImage)) {
+                            Label("シェア", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) { Button("閉じる") { dismiss() } }
+            }
+            .onAppear { renderShareImage() }
+        }
+    }
+
+    /// SNS投稿用のシェア画像を生成
+    @MainActor private func renderShareImage() {
+        let card = SeikenShareCard(visitedPrefs: visitedPrefs,
+                                   prefRegions: prefRegions,
+                                   placeCount: places.count,
+                                   countryCount: visitedCountries.count)
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = 3
+        if let ui = renderer.uiImage {
+            shareImage = Image(uiImage: ui)
         }
     }
 
@@ -91,6 +117,9 @@ struct AchievementsView: View {
             }
             ProgressView(value: Double(visitedPrefs.count), total: 47)
                 .tint(AppPalette.accent)
+            Text("制覇率 \(Int(Double(visitedPrefs.count) / 47 * 100))%")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
                 ForEach(prefRegions) { pref in
                     Text(pref.id.replacingOccurrences(of: "県", with: "")
@@ -163,6 +192,104 @@ struct AchievementsView: View {
         }
         .padding()
         .background(.white, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+// MARK: - SNSシェア用カード
+
+/// 制県レベルのシェア画像(日本地図の塗り絵+レベル)
+struct SeikenShareCard: View {
+    let visitedPrefs: Set<String>
+    let prefRegions: [GeoRegion]
+    let placeCount: Int
+    let countryCount: Int
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 7) {
+                Image(systemName: "shoeprints.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(6)
+                    .background(AppPalette.accent, in: Circle())
+                Text("あしあと")
+                    .font(.system(size: 17, weight: .heavy, design: .rounded))
+                    .foregroundStyle(AppPalette.chrome)
+                Spacer()
+                Text("制県レベル")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(visitedPrefs.count)")
+                    .font(.system(size: 64, weight: .heavy, design: .rounded))
+                    .foregroundStyle(AppPalette.accent)
+                Text("/ 47 都道府県")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            JapanMiniMap(prefRegions: prefRegions, visited: visitedPrefs)
+                .frame(height: 250)
+            HStack(spacing: 20) {
+                statChip("あしあと", "\(placeCount)")
+                statChip("海外", "\(countryCount)か国")
+            }
+            Text("#あしあと で旅の記録をシェア")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .padding(22)
+        .frame(width: 360)
+        .background(
+            LinearGradient(colors: [Color(hex: "FFF6EA"), Color(hex: "FFE3C2")],
+                           startPoint: .top, endPoint: .bottom)
+        )
+    }
+
+    private func statChip(_ label: String, _ value: String) -> some View {
+        HStack(spacing: 5) {
+            Text(label).font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+            Text(value).font(.system(size: 15, weight: .heavy, design: .rounded))
+                .foregroundStyle(AppPalette.chrome)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(.white, in: Capsule())
+    }
+}
+
+/// 47都道府県のミニ塗り絵地図(Canvas描画)
+struct JapanMiniMap: View {
+    let prefRegions: [GeoRegion]
+    let visited: Set<String>
+
+    var body: some View {
+        Canvas { ctx, size in
+            let lonMin = 122.5, lonMax = 149.5, latMin = 24.0, latMax = 45.8
+            // 中緯度の縦横比補正(cos35°≒0.82)
+            let spanX = (lonMax - lonMin) * 0.82
+            let spanY = latMax - latMin
+            let scale = min(size.width / spanX, size.height / spanY)
+            let offX = (size.width - spanX * scale) / 2
+            let offY = (size.height - spanY * scale) / 2
+            func pt(_ c: CLLocationCoordinate2D) -> CGPoint {
+                CGPoint(x: offX + (c.longitude - lonMin) * 0.82 * scale,
+                        y: offY + (latMax - c.latitude) * scale)
+            }
+            for region in prefRegions {
+                var path = Path()
+                for ring in region.polygons {
+                    guard let first = ring.first else { continue }
+                    path.move(to: pt(first))
+                    for c in ring.dropFirst() { path.addLine(to: pt(c)) }
+                    path.closeSubpath()
+                }
+                let fill: Color = visited.contains(region.id)
+                    ? AppPalette.accent : Color.gray.opacity(0.22)
+                ctx.fill(path, with: .color(fill))
+                ctx.stroke(path, with: .color(.white), lineWidth: 0.8)
+            }
+        }
     }
 }
 

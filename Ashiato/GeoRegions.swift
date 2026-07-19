@@ -20,15 +20,21 @@ enum GeoData {
     /// 海の色(フラットな青)
     static let ocean = Color(hex: "7EC4EA")
 
-    /// 海を覆う帯状ポリゴン(巨大1枚だと描画が乱れるため経度90度ずつに分割)
+    /// 海を覆う帯状ポリゴン(経度45度ずつ)。
+    /// 長い辺をそのまま描くと大圏コースで曲がって隙間ができるため、
+    /// 上下の辺に5度おきの中間点を打って緯線に沿わせる。
     static var oceanBands: [[CLLocationCoordinate2D]] {
-        stride(from: -180.0, to: 180.0, by: 90.0).map { lon in
-            [
-                CLLocationCoordinate2D(latitude: 85, longitude: lon + 0.01),
-                CLLocationCoordinate2D(latitude: 85, longitude: lon + 90 - 0.01),
-                CLLocationCoordinate2D(latitude: -85, longitude: lon + 90 - 0.01),
-                CLLocationCoordinate2D(latitude: -85, longitude: lon + 0.01),
-            ]
+        stride(from: -180.0, to: 180.0, by: 45.0).map { lon in
+            let west = lon, east = lon + 45
+            // 端点を必ず含む経度列(strideは終端を落とすことがあるため明示的に追加)
+            var lons = Array(stride(from: west, to: east, by: 5.0))
+            lons.append(east)
+            var ring: [CLLocationCoordinate2D] = []
+            // 上辺(北緯85度)を西→東へ
+            for l in lons { ring.append(CLLocationCoordinate2D(latitude: 85, longitude: l)) }
+            // 下辺(南緯85度)を東→西へ
+            for l in lons.reversed() { ring.append(CLLocationCoordinate2D(latitude: -85, longitude: l)) }
+            return ring
         }
     }
 
