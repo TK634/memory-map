@@ -86,9 +86,10 @@
 				};
 			};
 			buildConfigurationList = 48B0870B300C66AB00CB0A6D /* Build configuration list for PBXProject "Ashiato" */;
-			developmentRegion = en;
+			developmentRegion = ja;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				ja,
 				en,
 				Base,
 			);

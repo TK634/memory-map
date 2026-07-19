@@ -85,6 +85,14 @@ extension Attachment {
     var commentText: String { comment ?? "" }
 }
 
+extension Date {
+    /// 「2026年7月19日」形式の日本語表記
+    var jaDateText: String {
+        formatted(Date.FormatStyle(date: .long, time: .omitted,
+                                   locale: Locale(identifier: "ja_JP")))
+    }
+}
+
 extension Place {
     /// 一覧のひとこと表示: 最新コメント(なければ旧メモ欄の内容)
     var snippetText: String? {

@@ -159,7 +159,7 @@ struct AddEditPlaceView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(att.commentText)
                     if let d = att.createdAt {
-                        Text(d.formatted(date: .abbreviated, time: .omitted))
+                        Text(d.jaDateText)
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                 }
