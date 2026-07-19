@@ -12,12 +12,15 @@ struct AddEditPlaceView: View {
     let coordinate: CLLocationCoordinate2D
     let place: Place?          // nil なら新規追加
     let members: [Member]
+    var initialName: String = ""   // 検索候補から引き継ぐ場所名
 
     @State private var name = ""
     @State private var isJapan = true
     @State private var year: Int = 0
     @State private var visitDate: Date? = nil
     @State private var hasDate = false
+    @State private var hasEndDate = false
+    @State private var visitEndDate: Date? = nil
     @State private var selectedIDs: Set<UUID> = []
 
     // コメント(無料) / 写真(プレミアム)
@@ -88,10 +91,23 @@ struct AddEditPlaceView: View {
                     }
                     Toggle("詳しい日付を入れる", isOn: $hasDate)
                     if hasDate {
-                        DatePicker("訪問日",
+                        DatePicker("行った日",
                                    selection: Binding(get: { visitDate ?? Date() },
                                                       set: { visitDate = $0; year = Calendar.current.component(.year, from: $0) }),
                                    displayedComponents: .date)
+                        Toggle("泊まりの旅(期間で記録)", isOn: $hasEndDate)
+                        if hasEndDate {
+                            DatePicker("帰った日",
+                                       selection: Binding(get: { visitEndDate ?? visitDate ?? Date() },
+                                                          set: { visitEndDate = $0 }),
+                                       in: (visitDate ?? Date())...,
+                                       displayedComponents: .date)
+                            if let s = visitDate, let e = visitEndDate, e > s {
+                                let nights = Calendar.current.dateComponents([.day], from: s, to: e).day ?? 0
+                                Text("\(nights)泊\(nights + 1)日の旅")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
 
@@ -251,10 +267,14 @@ struct AddEditPlaceView: View {
             year = Int(p.year)
             visitDate = p.visitDate
             hasDate = p.visitDate != nil
+            visitEndDate = p.visitEndDate
+            hasEndDate = p.visitEndDate != nil
             selectedIDs = Set(p.visitorIDList)
         } else {
             if members.count == 1, let id = members[0].id { selectedIDs = [id] }
-            // 逆ジオコーディングで名前と国内/海外を推定
+            // 検索候補から来た場合はその名前を優先
+            if !initialName.isEmpty { name = initialName }
+            // 逆ジオコーディングで名前(未設定時)と国内/海外を推定
             let loc = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
             CLGeocoder().reverseGeocodeLocation(loc, preferredLocale: Locale(identifier: "ja_JP")) { marks, _ in
                 guard let m = marks?.first else { return }
@@ -277,6 +297,7 @@ struct AddEditPlaceView: View {
         p.isJapan = isJapan
         p.year = Int16(year)
         p.visitDate = hasDate ? visitDate : nil
+        p.visitEndDate = (hasDate && hasEndDate) ? visitEndDate : nil
         p.visitorIDList = Array(selectedIDs)
 
         let now = Date()

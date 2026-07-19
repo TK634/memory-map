@@ -27,6 +27,8 @@ struct ContentView: View {
     @State private var shareInfo: (CKShare, CKContainer)?
     @State private var searchText = ""
     @State private var searchResults: [MKMapItem] = []
+    @State private var searchPlaceName = ""
+    @State private var shareError: String?
     @State private var showHelp = false
     @State private var showOnboarding = false
     @State private var replayTutorial = false
@@ -71,7 +73,14 @@ struct ContentView: View {
             HelpView { replayTutorial = true }
         }
         .sheet(item: $addCoordinate) { coord in
-            AddEditPlaceView(log: log, coordinate: coord, place: nil, members: members)
+            AddEditPlaceView(log: log, coordinate: coord, place: nil, members: members,
+                             initialName: searchPlaceName)
+        }
+        .alert("共有できませんでした", isPresented: Binding(
+            get: { shareError != nil }, set: { if !$0 { shareError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(shareError ?? "")
         }
         .sheet(item: $editingPlace) { place in
             AddEditPlaceView(log: log,
@@ -180,7 +189,6 @@ struct ContentView: View {
     // MARK: - 地図
 
     private var mapLayer: some View {
-        MapReader { proxy in
             Map(position: $camera) {
                 // 1. 海: フラットな青で全面を覆う
                 ForEach(Array(GeoData.oceanBands.enumerated()), id: \.offset) { _, band in
@@ -213,10 +221,6 @@ struct ContentView: View {
             }
             .mapStyle(.standard(elevation: .flat, emphasis: .muted,
                                 pointsOfInterest: .excludingAll, showsTraffic: false))
-            .onTapGesture { screenPoint in
-                guard let coord = proxy.convert(screenPoint, from: .local) else { return }
-                addCoordinate = coord
-            }
             .task {
                 // GeoJSONの読み込みはバックグラウンドで(起動をブロックしない)
                 if countryRegions.isEmpty {
@@ -226,7 +230,6 @@ struct ContentView: View {
                     prefRegions = prefs
                 }
             }
-        }
     }
 
     // MARK: - 検索バー
@@ -251,6 +254,7 @@ struct ContentView: View {
                     ForEach(searchResults.prefix(5), id: \.self) { item in
                         Button {
                             let c = item.placemark.coordinate
+                            searchPlaceName = item.name ?? ""
                             searchResults = []; searchText = ""
                             camera = .region(MKCoordinateRegion(center: c, latitudeDelta: 1.5, longitudeDelta: 1.5))
                             addCoordinate = c
@@ -346,7 +350,13 @@ struct ContentView: View {
             shareInfo = try await PersistenceController.shared.getOrCreateShare(for: log)
             showShare = true
         } catch {
-            print("共有の準備に失敗: \(error)")
+            shareError = """
+            iCloudの共有リンクを作成できませんでした。
+            共有には、iCloudにサインインした実機が必要です。\
+            (シミュレータや、開発用の署名がない状態では利用できません)
+
+            詳細: \(error.localizedDescription)
+            """
         }
     }
 }

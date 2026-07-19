@@ -23,6 +23,7 @@
         <attribute name="memo" optional="YES" attributeType="String"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <attribute name="visitDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="visitEndDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="visitorIDs" optional="YES" attributeType="String"/>
         <attribute name="year" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="attachments" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Attachment" inverseName="place" inverseEntity="Attachment"/>

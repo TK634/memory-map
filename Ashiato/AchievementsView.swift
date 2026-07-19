@@ -40,23 +40,77 @@ struct AchievementsView: View {
         let unlocked: Bool
     }
 
+    /// コメント・写真の総数
+    private var commentCount: Int {
+        places.reduce(0) { sum, p in
+            sum + ((p.attachments as? Set<Attachment>) ?? []).filter { $0.imageData == nil && !($0.comment ?? "").isEmpty }.count
+        }
+    }
+    private var photoCount: Int {
+        places.reduce(0) { sum, p in
+            sum + ((p.attachments as? Set<Attachment>) ?? []).filter { $0.imageData != nil }.count
+        }
+    }
+    /// 訪問日がある記録の季節(春3-5 夏6-8 秋9-11 冬12-2)
+    private var seasonCount: Int {
+        let months = Set(places.compactMap { $0.visitDate }.map { Calendar.current.component(.month, from: $0) })
+        var seasons = Set<Int>()
+        for m in months {
+            switch m {
+            case 3...5: seasons.insert(0)
+            case 6...8: seasons.insert(1)
+            case 9...11: seasons.insert(2)
+            default: seasons.insert(3)
+            }
+        }
+        return seasons.count
+    }
+    /// 記録がある年の数
+    private var yearCount: Int {
+        Set(places.compactMap { $0.year > 0 ? $0.year : nil }).count
+    }
+    /// 2泊以上の旅の数(期間指定を使った記録)
+    private var longTripCount: Int {
+        places.filter { p in
+            guard let s = p.visitDate, let e = p.visitEndDate else { return false }
+            return (Calendar.current.dateComponents([.day], from: s, to: e).day ?? 0) >= 2
+        }.count
+    }
+
     private var badges: [Badge] {
         let p = places.count
         let pref = visitedPrefs.count
         let c = visitedCountries.count
         return [
+            // 記録数
             .init(id: "はじめてのあしあと", icon: "shoeprints.fill", condition: "最初の記録をつける", unlocked: p >= 1),
             .init(id: "あしあと10", icon: "10.circle.fill", condition: "10か所記録する", unlocked: p >= 10),
             .init(id: "あしあと30", icon: "30.circle.fill", condition: "30か所記録する", unlocked: p >= 30),
+            .init(id: "あしあと50", icon: "50.circle.fill", condition: "50か所記録する", unlocked: p >= 50),
             .init(id: "あしあと100", icon: "flame.fill", condition: "100か所記録する", unlocked: p >= 100),
+            // 制県
             .init(id: "制県スタート", icon: "map.fill", condition: "3都道府県に行く", unlocked: pref >= 3),
             .init(id: "制県の旅人", icon: "signpost.right.fill", condition: "10都道府県に行く", unlocked: pref >= 10),
             .init(id: "制県マスター", icon: "crown.fill", condition: "25都道府県に行く", unlocked: pref >= 25),
             .init(id: "全県制覇", icon: "trophy.fill", condition: "47都道府県すべてに行く", unlocked: pref >= 47),
+            // 場所もの
+            .init(id: "北の大地", icon: "snowflake", condition: "北海道に行く", unlocked: visitedPrefs.contains("北海道")),
+            .init(id: "南国のあしあと", icon: "sun.max.fill", condition: "沖縄県に行く", unlocked: visitedPrefs.contains("沖縄県")),
+            .init(id: "三大都市めぐり", icon: "building.2.fill", condition: "東京・大阪・愛知に行く",
+                  unlocked: visitedPrefs.isSuperset(of: ["東京都", "大阪府", "愛知県"])),
+            // 海外
             .init(id: "はじめての海外", icon: "airplane", condition: "海外に1か国行く", unlocked: c >= 1),
             .init(id: "世界を歩く", icon: "globe.asia.australia.fill", condition: "5か国に行く", unlocked: c >= 5),
             .init(id: "世界の旅人", icon: "globe.europe.africa.fill", condition: "10か国に行く", unlocked: c >= 10),
+            // 旅のスタイル
+            .init(id: "泊まりの旅", icon: "moon.stars.fill", condition: "2泊以上の旅を記録する", unlocked: longTripCount >= 1),
+            .init(id: "春夏秋冬", icon: "leaf.fill", condition: "4つの季節すべてで記録する", unlocked: seasonCount >= 4),
+            .init(id: "旅の歴史家", icon: "book.fill", condition: "3つの年の記録をつける", unlocked: yearCount >= 3),
+            // ふたり・思い出
+            .init(id: "ふたりのはじまり", icon: "heart.circle.fill", condition: "全員で1か所行く", unlocked: togetherCount >= 1),
             .init(id: "みんなの思い出", icon: "heart.fill", condition: "全員で5か所行く", unlocked: togetherCount >= 5),
+            .init(id: "ことばのあしあと", icon: "text.bubble.fill", condition: "コメントを10件書く", unlocked: commentCount >= 10),
+            .init(id: "おもいでカメラ", icon: "camera.fill", condition: "写真を10枚残す", unlocked: photoCount >= 10),
         ]
     }
 

@@ -18,12 +18,11 @@ struct OnboardingView: View {
                 ).tag(0)
 
                 onboardPage(
-                    icon: "hand.tap.fill",
+                    icon: "magnifyingglass",
                     iconColor: AppPalette.chrome,
-                    title: "タップでも、検索でも",
-                    lines: ["行った場所を地図でタップすると、その場で記録画面が開きます。",
-                            "場所がわかっているなら検索が早い。「京都」「パリ」と探して選ぶだけ。",
-                            "場所の名前は自動で入ります。コメントも残せます。"]
+                    title: "検索して、えらぶだけ",
+                    lines: ["「京都」「パリ」のように行った場所を検索して、候補から選ぶだけで記録できます。",
+                            "泊まりの旅は期間でも記録できます。コメントもいっしょにどうぞ。"]
                 ).tag(1)
 
                 colorPage.tag(2)
@@ -124,10 +123,11 @@ struct HelpView: View {
         NavigationStack {
             List {
                 Section("記録する") {
-                    helpRow("hand.tap", "地図をタップ", "タップした場所の記録画面が開きます。場所の名前は自動入力。")
-                    helpRow("magnifyingglass", "検索から追加", "上の検索バーで「京都」「パリ」などを探してそのまま記録できます。")
+                    helpRow("magnifyingglass", "検索して記録", "上の検索バーで「京都」「パリ」などを探し、候補を選ぶと記録画面が開きます。")
+                    helpRow("calendar", "日付・期間", "行った日に加えて「泊まりの旅」は帰った日まで期間で記録できます。")
+                    helpRow("hand.tap", "ピンをタップ", "登録済みのピンをタップすると編集・コメント追記ができます。")
                     helpRow("text.bubble", "コメント", "場所ごとに何件でも。行くたびに思い出を追記できます。")
-                    helpRow("photo.on.rectangle.angled", "写真(プレミアム)", "場所ごとに写真を残せます。長押しではなく記録画面から追加します。")
+                    helpRow("photo.on.rectangle.angled", "写真(プレミアム)", "場所ごとに写真を残せます。記録画面から追加します。")
                 }
                 Section("ピンの色") {
                     helpColorRow(AppPalette.memberColors.first.map { Color(hex: $0) } ?? .red,
