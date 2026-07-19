@@ -25,10 +25,10 @@ struct ContentView: View {
     @State private var showList = false
     @State private var showShare = false
     @State private var shareInfo: (CKShare, CKContainer)?
-    @State private var searchText = ""
-    @State private var searchResults: [MKMapItem] = []
     @State private var searchPlaceName = ""
     @State private var shareError: String?
+    @State private var showAddSearch = false
+    @State private var pendingAdd: (name: String, coord: CLLocationCoordinate2D)?
     @State private var showHelp = false
     @State private var showOnboarding = false
     @State private var replayTutorial = false
@@ -51,7 +51,6 @@ struct ContentView: View {
             mapLayer
             VStack(spacing: 8) {
                 header
-                searchBar
                 filterBar
             }
             .padding(.horizontal, 12)
@@ -81,6 +80,21 @@ struct ContentView: View {
             if replayTutorial { replayTutorial = false; showOnboarding = true }
         }) {
             HelpView { replayTutorial = true }
+        }
+        .sheet(isPresented: $showAddSearch, onDismiss: {
+            // 検索シートで候補が確定していたら記録画面を開く
+            if let p = pendingAdd {
+                pendingAdd = nil
+                searchPlaceName = p.name
+                camera = .region(MKCoordinateRegion(center: p.coord,
+                                                    latitudeDelta: 1.5, longitudeDelta: 1.5))
+                addCoordinate = p.coord
+            }
+        }) {
+            AddPlaceSearchView { name, coord in
+                pendingAdd = (name, coord)
+                showAddSearch = false
+            }
         }
         .sheet(item: $addCoordinate) { coord in
             AddEditPlaceView(log: log, coordinate: coord, place: nil, members: members,
@@ -138,6 +152,14 @@ struct ContentView: View {
             .background(.regularMaterial, in: Capsule())
             .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             Spacer()
+            Button { Task { await prepareShare() } } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(AppPalette.chrome)
+                    .frame(width: 38, height: 38)
+                    .background(.regularMaterial, in: Circle())
+                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+            }
             Button { showHelp = true } label: {
                 Image(systemName: "questionmark")
                     .font(.system(size: 15, weight: .bold))
@@ -155,16 +177,16 @@ struct ContentView: View {
         HStack(spacing: 0) {
             barButton("list.bullet", "一覧") { showList = true }
             barButton("trophy.fill", "ランキング") { showRanking = true }
-            // 中央の共有ボタンだけ大きく強調
-            Button { Task { await prepareShare() } } label: {
+            // 中央の「登録」ボタンだけ大きく強調
+            Button { showAddSearch = true } label: {
                 VStack(spacing: 3) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 20, weight: .bold))
+                    Image(systemName: "plus")
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 46, height: 46)
                         .background(AppPalette.accent, in: Circle())
                         .shadow(color: AppPalette.accent.opacity(0.4), radius: 5, y: 2)
-                    Text("共有")
+                    Text("登録")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(AppPalette.chrome)
                 }
@@ -240,56 +262,6 @@ struct ContentView: View {
                     prefRegions = prefs
                 }
             }
-    }
-
-    // MARK: - 検索バー
-
-    private var searchBar: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("場所を検索(例:京都、パリ)", text: $searchText)
-                    .onSubmit { runSearch() }
-                if !searchText.isEmpty {
-                    Button { searchText = ""; searchResults = [] } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(10)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-
-            if !searchResults.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(searchResults.prefix(5), id: \.self) { item in
-                        Button {
-                            let c = item.placemark.coordinate
-                            searchPlaceName = item.name ?? ""
-                            searchResults = []; searchText = ""
-                            camera = .region(MKCoordinateRegion(center: c, latitudeDelta: 1.5, longitudeDelta: 1.5))
-                            addCoordinate = c
-                        } label: {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(item.name ?? "").font(.subheadline).foregroundStyle(.primary)
-                                Text(item.placemark.title ?? "").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 8).padding(.horizontal, 12)
-                        }
-                        Divider()
-                    }
-                }
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-            }
-        }
-    }
-
-    private func runSearch() {
-        let req = MKLocalSearch.Request()
-        req.naturalLanguageQuery = searchText
-        MKLocalSearch(request: req).start { resp, _ in
-            searchResults = resp?.mapItems ?? []
-        }
     }
 
     // MARK: - フィルターバー

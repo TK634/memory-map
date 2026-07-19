@@ -21,7 +21,7 @@ struct OnboardingView: View {
                     icon: "magnifyingglass",
                     iconColor: AppPalette.chrome,
                     title: "検索して、えらぶだけ",
-                    lines: ["「京都」「パリ」のように行った場所を検索して、候補から選ぶだけで記録できます。",
+                    lines: ["下の「＋登録」ボタンから行った場所を検索して、候補から選ぶだけで記録できます。",
                             "泊まりの旅は期間でも記録できます。コメントもいっしょにどうぞ。"]
                 ).tag(1)
 
@@ -123,7 +123,7 @@ struct HelpView: View {
         NavigationStack {
             List {
                 Section("記録する") {
-                    helpRow("magnifyingglass", "検索して記録", "上の検索バーで「京都」「パリ」などを探し、候補を選ぶと記録画面が開きます。")
+                    helpRow("plus.circle.fill", "登録ボタンから記録", "下の「＋登録」から「京都」「パリ」などを検索し、候補を選ぶと記録画面が開きます。")
                     helpRow("calendar", "日付・期間", "行った日に加えて「泊まりの旅」は帰った日まで期間で記録できます。")
                     helpRow("hand.tap", "ピンをタップ", "登録済みのピンをタップすると編集・コメント追記ができます。")
                     helpRow("text.bubble", "コメント", "場所ごとに何件でも。行くたびに思い出を追記できます。")
@@ -144,7 +144,7 @@ struct HelpView: View {
                 }
                 Section("共有") {
                     helpRow("person.2", "メンバー登録", "人型ボタンから追加。名前と色を設定できます。")
-                    helpRow("square.and.arrow.up", "iCloudで共有", "共有ボタンから招待リンクを送信。相手も同じ地図を編集できます。")
+                    helpRow("square.and.arrow.up", "iCloudで共有", "右上の共有ボタンから招待リンクを送信。相手も同じ地図を編集できます。")
                 }
                 if let onReplayTutorial {
                     Section {
