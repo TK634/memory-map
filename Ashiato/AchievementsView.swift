@@ -33,6 +33,22 @@ struct AchievementsView: View {
         return places.filter { Set($0.visitorIDList) == allIDs }.count
     }
 
+    /// JISコード順(北海道→沖縄)の都道府県
+    private static let prefOrder: [String] = [
+        "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+        "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+        "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+        "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+        "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+        "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+        "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+    ]
+    private var sortedPrefRegions: [GeoRegion] {
+        prefRegions.sorted {
+            (Self.prefOrder.firstIndex(of: $0.id) ?? 99) < (Self.prefOrder.firstIndex(of: $1.id) ?? 99)
+        }
+    }
+
     private struct Badge: Identifiable {
         let id: String
         let icon: String
@@ -140,7 +156,19 @@ struct AchievementsView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("閉じる") { dismiss() } }
             }
-            .onAppear { renderShareImage() }
+            .onAppear {
+                renderShareImage()
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-showAchievements") {
+                    print("[実績検証] 制県: \(visitedPrefs.count)/47 -> \(visitedPrefs.sorted())")
+                    print("[実績検証] 国: \(visitedCountries.count) -> \(visitedCountries.sorted())")
+                    print("[実績検証] 全員の場所: \(togetherCount), コメント: \(commentCount), 写真: \(photoCount), 季節: \(seasonCount), 年数: \(yearCount), 連泊: \(longTripCount)")
+                    for b in badges {
+                        print("[実績検証] \(b.unlocked ? "✅" : "🔒") \(b.id) (\(b.condition))")
+                    }
+                }
+                #endif
+            }
         }
     }
 
@@ -175,7 +203,7 @@ struct AchievementsView: View {
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
-                ForEach(prefRegions) { pref in
+                ForEach(sortedPrefRegions) { pref in
                     Text(pref.id.replacingOccurrences(of: "県", with: "")
                             .replacingOccurrences(of: "府", with: ""))
                         .font(.system(size: 11, weight: .bold))

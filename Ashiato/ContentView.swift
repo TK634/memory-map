@@ -60,6 +60,16 @@ struct ContentView: View {
         .overlay(alignment: .bottom) { bottomBar }
         .onAppear {
             if !hasSeenOnboarding { showOnboarding = true }
+            #if DEBUG
+            DemoSeeder.seedIfRequested(context: context, log: log)
+            if DemoSeeder.shouldShowAchievements {
+                // GeoJSON読み込みを待ってから実績を開く(検証・スクショ用)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    showOnboarding = false
+                    showAchievements = true
+                }
+            }
+            #endif
         }
         .sheet(isPresented: $showOnboarding) {
             OnboardingView {
