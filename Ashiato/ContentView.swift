@@ -32,6 +32,10 @@ struct ContentView: View {
     @State private var replayTutorial = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
+    // アニメ調フラット地図の塗り分けデータ(起動後に非同期読み込み)
+    @State private var countryRegions: [GeoRegion] = []
+    @State private var prefRegions: [GeoRegion] = []
+
     private var log: TravelLog { PersistenceController.shared.fetchOrCreateLog(in: context) }
     private var members: [Member] { Array(allMembers) }
     private var filtered: [Place] { allPlaces.filter { filter.matches($0, members: members) } }
@@ -165,6 +169,28 @@ struct ContentView: View {
     private var mapLayer: some View {
         MapReader { proxy in
             Map(position: $camera) {
+                // 1. 海: フラットな青で全面を覆う
+                ForEach(Array(GeoData.oceanBands.enumerated()), id: \.offset) { _, band in
+                    MapPolygon(coordinates: band)
+                        .foregroundStyle(GeoData.ocean)
+                }
+                // 2. 世界の国々(パステルで塗り分け)
+                ForEach(countryRegions) { region in
+                    ForEach(Array(region.polygons.enumerated()), id: \.offset) { _, poly in
+                        MapPolygon(coordinates: poly)
+                            .foregroundStyle(region.color)
+                            .stroke(.white, lineWidth: 1)
+                    }
+                }
+                // 3. 日本の都道府県(パステルで塗り分け)
+                ForEach(prefRegions) { region in
+                    ForEach(Array(region.polygons.enumerated()), id: \.offset) { _, poly in
+                        MapPolygon(coordinates: poly)
+                            .foregroundStyle(region.color)
+                            .stroke(.white, lineWidth: 1.5)
+                    }
+                }
+                // 4. あしあとピン
                 ForEach(filtered, id: \.objectID) { p in
                     Annotation(p.name ?? "", coordinate: .init(latitude: p.latitude, longitude: p.longitude)) {
                         PinView(color: p.pinColor(members: members))
@@ -172,22 +198,20 @@ struct ContentView: View {
                     }
                 }
             }
-            // やわらかい配色(muted)+店舗アイコンなどを非表示にしてスッキリ見せる
             .mapStyle(.standard(elevation: .flat, emphasis: .muted,
                                 pointsOfInterest: .excludingAll, showsTraffic: false))
-            // 「旅日記の紙の地図」風: 彩度を少し上げて暖色を掛け合わせる
-            .saturation(1.15)
-            .colorMultiply(Color(hex: "FFEFDB"))
-            .overlay(
-                // 四隅にほんのり暖色のビネットを乗せて絵本っぽく
-                RadialGradient(colors: [.clear, Color(hex: "E8963E").opacity(0.12)],
-                               center: .center, startRadius: 250, endRadius: 800)
-                    .allowsHitTesting(false)
-                    .ignoresSafeArea()
-            )
             .onTapGesture { screenPoint in
                 guard let coord = proxy.convert(screenPoint, from: .local) else { return }
                 addCoordinate = coord
+            }
+            .task {
+                // GeoJSONの読み込みはバックグラウンドで(起動をブロックしない)
+                if countryRegions.isEmpty {
+                    let countries = await Task.detached { GeoData.load("countries") }.value
+                    let prefs = await Task.detached { GeoData.load("prefectures") }.value
+                    countryRegions = countries
+                    prefRegions = prefs
+                }
             }
         }
     }
