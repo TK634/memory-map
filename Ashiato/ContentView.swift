@@ -27,6 +27,9 @@ struct ContentView: View {
     @State private var shareInfo: (CKShare, CKContainer)?
     @State private var searchText = ""
     @State private var searchResults: [MKMapItem] = []
+    @State private var showHelp = false
+    @State private var showOnboarding = false
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     private var log: TravelLog { PersistenceController.shared.fetchOrCreateLog(in: context) }
     private var members: [Member] { Array(allMembers) }
@@ -54,10 +57,21 @@ struct ContentView: View {
                     Button { showMembers = true } label: { Image(systemName: "person.2") }
                     Button { Task { await prepareShare() } } label: { Image(systemName: "square.and.arrow.up") }
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItemGroup(placement: .topBarLeading) {
                     Button { showList = true } label: { Image(systemName: "list.bullet") }
+                    Button { showHelp = true } label: { Image(systemName: "questionmark.circle") }
                 }
             }
+            .onAppear {
+                if !hasSeenOnboarding { showOnboarding = true }
+            }
+            .sheet(isPresented: $showOnboarding) {
+                OnboardingView {
+                    hasSeenOnboarding = true
+                    showOnboarding = false
+                }
+            }
+            .sheet(isPresented: $showHelp) { HelpView() }
             .sheet(item: $addCoordinate) { coord in
                 AddEditPlaceView(log: log, coordinate: coord, place: nil, members: members)
             }
@@ -98,7 +112,9 @@ struct ContentView: View {
                     }
                 }
             }
-            .mapStyle(.standard)
+            // やわらかい配色(muted)+店舗アイコンなどを非表示にしてスッキリ見せる
+            .mapStyle(.standard(elevation: .flat, emphasis: .muted,
+                                pointsOfInterest: .excludingAll, showsTraffic: false))
             .onTapGesture { screenPoint in
                 guard let coord = proxy.convert(screenPoint, from: .local) else { return }
                 addCoordinate = coord
@@ -230,14 +246,21 @@ struct ContentView: View {
 
 // MARK: - ピン表示
 
+/// 白い丸バッジ+足あとマーク。アプリ名「あしあと」にちなんだピン
 struct PinView: View {
     let color: Color
     var body: some View {
         ZStack {
-            Image(systemName: "mappin.circle.fill")
-                .font(.title)
-                .foregroundStyle(.white, color)
-                .shadow(radius: 2, y: 1)
+            Circle()
+                .fill(.white)
+                .frame(width: 30, height: 30)
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
+            Circle()
+                .stroke(color.opacity(0.4), lineWidth: 2)
+                .frame(width: 30, height: 30)
+            Image(systemName: "shoeprints.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(color)
         }
     }
 }
