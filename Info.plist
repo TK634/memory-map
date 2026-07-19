@@ -6,5 +6,9 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- iCloud同期の有効/無効。entitlementsを外している間(Personal Team実機テスト)はfalse。
+	     Developer Program承認後にentitlements復元とセットでtrueに戻すこと -->
+	<key>AshiatoCloudEnabled</key>
+	<false/>
 </dict>
 </plist>

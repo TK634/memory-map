@@ -45,20 +45,27 @@ final class PersistenceController {
             return [privateDesc, sharedDesc]
         }
 
-        // まずiCloud同期ありで試し、失敗したらローカルのみで開き直す
-        // (iCloud entitlementsのない署名・iCloudオフの端末でも起動できるように)
-        container.persistentStoreDescriptions = makeDescriptions(cloud: true)
-        var cloudError: Error?
+        // iCloud同期の可否は Info.plist の AshiatoCloudEnabled で決める。
+        // entitlementsのない署名でCloudKitを有効にすると、起動後に
+        // バックグラウンドでキャッチ不能なクラッシュになるため(実測)、
+        // entitlementsの有無とこのフラグは必ずセットで切り替えること。
+        let wantCloud = (Bundle.main.object(forInfoDictionaryKey: "AshiatoCloudEnabled") as? Bool) ?? true
+        isCloudEnabled = wantCloud
+        container.persistentStoreDescriptions = makeDescriptions(cloud: wantCloud)
+        var loadError: Error?
         container.loadPersistentStores { _, error in
-            if let error { cloudError = error }
+            if let error { loadError = error }
         }
-        if cloudError != nil {
+        if loadError != nil, wantCloud {
+            // 予期しない失敗時はローカルのみで開き直す(最後の砦)
             isCloudEnabled = false
             container.persistentStoreDescriptions = makeDescriptions(cloud: false)
             container.loadPersistentStores { _, error in
                 if let error { fatalError("Core Data 読み込み失敗(ローカル): \(error)") }
             }
-            print("[Persistence] iCloud同期を無効化しローカルのみで動作します: \(cloudError!)")
+            print("[Persistence] iCloud同期を無効化しローカルのみで動作します: \(loadError!)")
+        } else if let loadError {
+            fatalError("Core Data 読み込み失敗: \(loadError)")
         }
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
