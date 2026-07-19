@@ -13,6 +13,7 @@ struct AshiatoApp: App {
                 .environmentObject(store)
                 .fontDesign(.rounded)          // 全体を丸みのあるフォントに
                 .tint(AppPalette.accent)       // アクセントカラーで統一
+                .environment(\.locale, Locale(identifier: "ja_JP"))  // 日付UI等を常に日本語表記に
         }
     }
 }
