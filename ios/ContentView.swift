@@ -46,7 +46,7 @@ struct ContentView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 4)
             }
-            .navigationTitle("メモリーマップ")
+            .navigationTitle("あしあと")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {

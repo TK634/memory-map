@@ -1,11 +1,11 @@
-# メモリーマップ — iOSアプリ(Apple純正 CloudKit版)
+# あしあと — iOSアプリ(Apple純正 CloudKit版)
 
 訪れた場所を地図にピンで記録し、iCloudで夫婦・友達と共有できるiPhoneアプリです。
 サーバー不要・追加費用なし(Apple IDだけで同期・共有)。
 
 > **アプリ名について**: ホーム画面に表示される名前は Xcode の
-> Target → General → Display Name に「メモリーマップ」と入力して設定します。
-> (プロジェクト内部名は英数字の `TabiNoKiroku` のままで問題ありません)
+> Target → General → Display Name に「あしあと」と入力して設定します。
+> (プロジェクト内部名は英数字の `Ashiato` のままで問題ありません)
 
 ## 機能
 
@@ -27,24 +27,24 @@
 
 1. **Xcodeで新規プロジェクト作成**
    - File → New → Project → iOS → App
-   - Product Name: `TabiNoKiroku` / Interface: SwiftUI / Language: Swift
+   - Product Name: `Ashiato` / Interface: SwiftUI / Language: Swift
    - 「Use Core Data」「Host in CloudKit」は**チェック不要**(このフォルダのファイルで置き換えるため)
 
 2. **ファイルを差し替え**
-   - 自動生成された `ContentView.swift` と `TabiNokirokuApp.swift` を削除
-   - このフォルダ内の `.swift` ファイル7つと `TabiNoKiroku.xcdatamodeld` をプロジェクトにドラッグ&ドロップ
+   - 自動生成された `ContentView.swift` と `AshiatoApp.swift` を削除
+   - このフォルダ内の `.swift` ファイル7つと `Ashiato.xcdatamodeld` をプロジェクトにドラッグ&ドロップ
      (「Copy items if needed」にチェック)
 
 3. **Capabilities を追加**(Signing & Capabilities タブ)
    - `iCloud` を追加 → CloudKit にチェック → コンテナを新規作成
-     (例: `iCloud.com.あなたのID.TabiNoKiroku`)
+     (例: `iCloud.com.あなたのID.Ashiato`)
    - `Background Modes` を追加 → Remote notifications にチェック
    - `In-App Purchase` を追加(プレミアムのサブスク課金に必要)
    - `Persistence.swift` の `cloudKitContainerID` を作成したコンテナIDに書き換える
 
    **サブスク商品の作成**(App Store Connect)
    - 自動更新サブスクリプションを作成し、プロダクトIDを
-     `memorymap.premium.monthly`(`StoreManager.premiumProductID` と一致)にする
+     `ashiato.premium.monthly`(`StoreManager.premiumProductID` と一致)にする
    - 無料トライアル(例: 1週間)と価格を設定
    - 実機テスト前は Xcode の StoreKit Configuration ファイル、または
      App Store Connect の Sandbox テスターで購入・復元・解約を確認
@@ -68,7 +68,7 @@
 
 | ファイル | 役割 |
 |---|---|
-| `TabiNoKirokuApp.swift` | エントリポイント |
+| `AshiatoApp.swift` | エントリポイント |
 | `Persistence.swift` | Core Data + CloudKit 同期・CKShare共有 |
 | `ModelHelpers.swift` | フィルターロジック・色・モデル拡張 |
 | `ContentView.swift` | 地図・検索・フィルターバー |
@@ -76,7 +76,7 @@
 | `OtherViews.swift` | メンバー管理・ランキング・一覧・共有シート |
 | `StoreManager.swift` | StoreKit 2 サブスク(購入・状態監視・復元) |
 | `PaywallView.swift` | ペイウォール画面 |
-| `TabiNoKiroku.xcdatamodeld` | データモデル(TravelLog / Place / Member / Attachment) |
+| `Ashiato.xcdatamodeld` | データモデル(TravelLog / Place / Member / Attachment) |
 
 ## 注意
 

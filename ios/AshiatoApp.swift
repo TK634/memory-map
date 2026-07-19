@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct TabiNoKirokuApp: App {
+struct AshiatoApp: App {
     let persistence = PersistenceController.shared
     @StateObject private var store = StoreManager()
 

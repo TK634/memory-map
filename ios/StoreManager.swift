@@ -8,7 +8,7 @@ import StoreKit
 final class StoreManager: ObservableObject {
 
     /// App Store Connect で作成するサブスク商品ID(TODO/DESIGN と一致させること)
-    static let premiumProductID = "memorymap.premium.monthly"
+    static let premiumProductID = "ashiato.premium.monthly"
 
     @Published private(set) var product: Product?
     @Published private(set) var isPremium = false

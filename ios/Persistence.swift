@@ -10,10 +10,10 @@ final class PersistenceController {
     let container: NSPersistentCloudKitContainer
 
     /// Xcode の Signing & Capabilities で設定する iCloud コンテナIDと合わせること
-    static let cloudKitContainerID = "iCloud.com.example.TabiNoKiroku"
+    static let cloudKitContainerID = "iCloud.com.example.Ashiato"
 
     private init() {
-        container = NSPersistentCloudKitContainer(name: "TabiNoKiroku")
+        container = NSPersistentCloudKitContainer(name: "Ashiato")
 
         guard let base = container.persistentStoreDescriptions.first,
               let baseURL = base.url?.deletingLastPathComponent() else {
@@ -60,7 +60,7 @@ final class PersistenceController {
         if let mine = logs.first { return mine }
 
         let log = TravelLog(context: context)
-        log.title = "メモリーマップ"
+        log.title = "あしあと"
         log.createdAt = Date()
         try? context.save()
         return log
@@ -82,7 +82,7 @@ final class PersistenceController {
             return (existing, ckContainer)
         }
         let (_, share, _) = try await container.share([log], to: nil)
-        share[CKShare.SystemFieldKey.title] = "メモリーマップ" as CKRecordValue
+        share[CKShare.SystemFieldKey.title] = "あしあと" as CKRecordValue
         return (share, ckContainer)
     }
 }
