@@ -10,5 +10,12 @@
 	     Developer Program承認後にentitlements復元とセットでtrueに戻すこと -->
 	<key>AshiatoCloudEnabled</key>
 	<false/>
+	<!-- 対応言語は日本語のみ。DatePicker等のシステムUIも日本語表示にする -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ja</string>
+	</array>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
 </dict>
 </plist>
