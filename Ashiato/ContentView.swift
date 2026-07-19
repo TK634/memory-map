@@ -30,6 +30,7 @@ struct ContentView: View {
     @State private var showHelp = false
     @State private var showOnboarding = false
     @State private var replayTutorial = false
+    @State private var showAchievements = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     // アニメ調フラット地図の塗り分けデータ(起動後に非同期読み込み)
@@ -78,6 +79,10 @@ struct ContentView: View {
                              place: place, members: members)
         }
         .sheet(isPresented: $showMembers) { MembersView(log: log) }
+        .sheet(isPresented: $showAchievements) {
+            AchievementsView(places: allPlaces.map { $0 }, members: members,
+                             prefRegions: prefRegions, countryRegions: countryRegions)
+        }
         .sheet(isPresented: $showRanking) {
             RankingView(places: allPlaces.map { $0 }, members: members, filter: filter)
         }
@@ -114,6 +119,14 @@ struct ContentView: View {
             .background(.regularMaterial, in: Capsule())
             .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             Spacer()
+            Button { showHelp = true } label: {
+                Image(systemName: "questionmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(AppPalette.chrome)
+                    .frame(width: 38, height: 38)
+                    .background(.regularMaterial, in: Circle())
+                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+            }
         }
     }
 
@@ -140,7 +153,7 @@ struct ContentView: View {
             }
             .offset(y: -8)
             barButton("person.2.fill", "メンバー") { showMembers = true }
-            barButton("questionmark.circle.fill", "使い方") { showHelp = true }
+            barButton("rosette", "実績") { showAchievements = true }
         }
         .padding(.horizontal, 6)
         .padding(.top, 10)

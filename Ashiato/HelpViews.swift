@@ -140,6 +140,7 @@ struct HelpView: View {
                     helpRow("line.3.horizontal.decrease.circle", "フィルター", "地図上部のチップで「行った人」「国内/海外」「年」をしぼり込み。")
                     helpRow("trophy", "ランキング", "メンバーごとの訪問数を比較。フィルターと連動します。")
                     helpRow("list.bullet", "一覧", "記録を新しい順に一覧表示。タップで地図へジャンプ。")
+                    helpRow("rosette", "実績", "制県レベル(47都道府県)・訪問国数・バッジ。記録するほど増えていきます。")
                 }
                 Section("共有") {
                     helpRow("person.2", "メンバー登録", "人型ボタンから追加。名前と色を設定できます。")

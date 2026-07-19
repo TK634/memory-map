@@ -72,3 +72,37 @@ extension MKPolygon {
         return coords
     }
 }
+
+extension GeoRegion {
+    /// 座標がこの領域内にあるか(レイキャスティング法)
+    func contains(_ coord: CLLocationCoordinate2D) -> Bool {
+        polygons.contains { ring in
+            var inside = false
+            var j = ring.count - 1
+            for i in 0..<ring.count {
+                let a = ring[i], b = ring[j]
+                if (a.latitude > coord.latitude) != (b.latitude > coord.latitude) {
+                    let x = (b.longitude - a.longitude) * (coord.latitude - a.latitude)
+                        / (b.latitude - a.latitude) + a.longitude
+                    if coord.longitude < x { inside.toggle() }
+                }
+                j = i
+            }
+            return inside
+        }
+    }
+
+    /// 座標リストから訪問済み領域名を求める
+    static func visitedNames(of regions: [GeoRegion],
+                             coords: [CLLocationCoordinate2D]) -> Set<String> {
+        var visited = Set<String>()
+        for c in coords {
+            if let r = regions.first(where: { !visited.contains($0.id) && $0.contains(c) }) {
+                visited.insert(r.id)
+            } else if let r = regions.first(where: { $0.contains(c) }) {
+                visited.insert(r.id)
+            }
+        }
+        return visited
+    }
+}
