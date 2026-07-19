@@ -221,7 +221,8 @@ struct ContentView: View {
     // MARK: - 地図
 
     private var mapLayer: some View {
-            Map(position: $camera) {
+            // 回転・傾きは無効(北固定)。方位磁針が出ずヘッダーとも被らない
+            Map(position: $camera, interactionModes: [.pan, .zoom]) {
                 // 1. 海: フラットな青で全面を覆う
                 ForEach(Array(GeoData.oceanBands.enumerated()), id: \.offset) { _, band in
                     MapPolygon(coordinates: band)
