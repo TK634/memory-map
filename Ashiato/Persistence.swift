@@ -22,7 +22,6 @@ final class PersistenceController {
 
         // プライベートDB(自分のデータ)
         let privateDesc = NSPersistentStoreDescription(url: baseURL.appendingPathComponent("private.sqlite"))
-        privateDesc.configuration = "Default"
         let privateOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: Self.cloudKitContainerID)
         privateOptions.databaseScope = .private
         privateDesc.cloudKitContainerOptions = privateOptions
@@ -31,7 +30,6 @@ final class PersistenceController {
 
         // 共有DB(相手から共有されたデータ)
         let sharedDesc = NSPersistentStoreDescription(url: baseURL.appendingPathComponent("shared.sqlite"))
-        sharedDesc.configuration = "Default"
         let sharedOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: Self.cloudKitContainerID)
         sharedOptions.databaseScope = .shared
         sharedDesc.cloudKitContainerOptions = sharedOptions
