@@ -18,14 +18,19 @@ struct ContentView: View {
                            latitudeDelta: 12, longitudeDelta: 12)
         .toRegion()
     )
-    @State private var addCoordinate: CLLocationCoordinate2D?
+    /// 登録待ちの場所(検索候補で確定した名前と座標をセットで持つ)
+    struct PendingPlace: Identifiable {
+        let id = UUID()
+        let name: String
+        let coord: CLLocationCoordinate2D
+    }
+    @State private var addPlace: PendingPlace?
     @State private var editingPlace: Place?
     @State private var showMembers = false
     @State private var showRanking = false
     @State private var showList = false
     @State private var showShare = false
     @State private var shareInfo: (CKShare, CKContainer)?
-    @State private var searchPlaceName = ""
     @State private var shareError: String?
     @State private var showAddSearch = false
     @State private var pendingAdd: (name: String, coord: CLLocationCoordinate2D)?
@@ -85,10 +90,9 @@ struct ContentView: View {
             // 検索シートで候補が確定していたら記録画面を開く
             if let p = pendingAdd {
                 pendingAdd = nil
-                searchPlaceName = p.name
                 camera = .region(MKCoordinateRegion(center: p.coord,
                                                     latitudeDelta: 1.5, longitudeDelta: 1.5))
-                addCoordinate = p.coord
+                addPlace = PendingPlace(name: p.name, coord: p.coord)
             }
         }) {
             AddPlaceSearchView { name, coord in
@@ -96,9 +100,9 @@ struct ContentView: View {
                 showAddSearch = false
             }
         }
-        .sheet(item: $addCoordinate) { coord in
-            AddEditPlaceView(log: log, coordinate: coord, place: nil, members: members,
-                             initialName: searchPlaceName)
+        .sheet(item: $addPlace) { pending in
+            AddEditPlaceView(log: log, coordinate: pending.coord, place: nil, members: members,
+                             initialName: pending.name)
         }
         .alert("共有できませんでした", isPresented: Binding(
             get: { shareError != nil }, set: { if !$0 { shareError = nil } })) {
@@ -366,10 +370,6 @@ struct PinView: View {
 }
 
 // MARK: - 小物
-
-extension CLLocationCoordinate2D: Identifiable {
-    public var id: String { "\(latitude),\(longitude)" }
-}
 
 extension MKCoordinateRegion {
     func toRegion() -> MKCoordinateRegion { self }
