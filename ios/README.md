@@ -32,14 +32,22 @@
 
 2. **ファイルを差し替え**
    - 自動生成された `ContentView.swift` と `TabiNokirokuApp.swift` を削除
-   - このフォルダ内の `.swift` ファイル5つと `TabiNoKiroku.xcdatamodeld` をプロジェクトにドラッグ&ドロップ
+   - このフォルダ内の `.swift` ファイル7つと `TabiNoKiroku.xcdatamodeld` をプロジェクトにドラッグ&ドロップ
      (「Copy items if needed」にチェック)
 
 3. **Capabilities を追加**(Signing & Capabilities タブ)
    - `iCloud` を追加 → CloudKit にチェック → コンテナを新規作成
      (例: `iCloud.com.あなたのID.TabiNoKiroku`)
    - `Background Modes` を追加 → Remote notifications にチェック
+   - `In-App Purchase` を追加(プレミアムのサブスク課金に必要)
    - `Persistence.swift` の `cloudKitContainerID` を作成したコンテナIDに書き換える
+
+   **サブスク商品の作成**(App Store Connect)
+   - 自動更新サブスクリプションを作成し、プロダクトIDを
+     `memorymap.premium.monthly`(`StoreManager.premiumProductID` と一致)にする
+   - 無料トライアル(例: 1週間)と価格を設定
+   - 実機テスト前は Xcode の StoreKit Configuration ファイル、または
+     App Store Connect の Sandbox テスターで購入・復元・解約を確認
 
 4. **実機で実行**
    - iPhoneにiCloudサインイン済みであることを確認して Run
@@ -64,9 +72,11 @@
 | `Persistence.swift` | Core Data + CloudKit 同期・CKShare共有 |
 | `ModelHelpers.swift` | フィルターロジック・色・モデル拡張 |
 | `ContentView.swift` | 地図・検索・フィルターバー |
-| `AddEditPlaceView.swift` | 訪問地の追加・編集 |
+| `AddEditPlaceView.swift` | 訪問地の追加・編集(プレミアム: 写真・コメント) |
 | `OtherViews.swift` | メンバー管理・ランキング・一覧・共有シート |
-| `TabiNoKiroku.xcdatamodeld` | データモデル(TravelLog / Place / Member) |
+| `StoreManager.swift` | StoreKit 2 サブスク(購入・状態監視・復元) |
+| `PaywallView.swift` | ペイウォール画面 |
+| `TabiNoKiroku.xcdatamodeld` | データモデル(TravelLog / Place / Member / Attachment) |
 
 ## 注意
 

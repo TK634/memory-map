@@ -1,5 +1,27 @@
 import SwiftUI
 import CoreData
+import UIKit
+
+// MARK: - 画像圧縮(iCloud容量・同期速度対策)
+
+extension UIImage {
+    /// 長辺を maxEdge に収まるよう縮小し、JPEG に圧縮したデータを返す。
+    /// DESIGN.md の目安: 長辺2000px / JPEG品質0.7
+    func compressedJPEGData(maxEdge: CGFloat = 2000, quality: CGFloat = 0.7) -> Data? {
+        let longest = max(size.width, size.height)
+        let scale = longest > maxEdge ? maxEdge / longest : 1
+        let target = CGSize(width: size.width * scale, height: size.height * scale)
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1                    // ピクセル等倍で描画(Retina倍化を防ぐ)
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: target, format: format)
+        let resized = renderer.image { _ in
+            draw(in: CGRect(origin: .zero, size: target))
+        }
+        return resized.jpegData(compressionQuality: quality)
+    }
+}
 
 // MARK: - 色ユーティリティ
 
@@ -57,6 +79,14 @@ extension Place {
         return vs.map(\.displayName).joined(separator: "・")
     }
 }
+
+extension Attachment {
+    var image: UIImage? { imageData.flatMap(UIImage.init(data:)) }
+    var commentText: String { comment ?? "" }
+}
+
+// `.sheet(item:)` で Place を直接渡すため Identifiable に準拠(id は UUID?)
+extension Place: Identifiable {}
 
 // MARK: - フィルター
 
