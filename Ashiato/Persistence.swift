@@ -10,7 +10,7 @@ final class PersistenceController {
     let container: NSPersistentCloudKitContainer
 
     /// Xcode の Signing & Capabilities で設定する iCloud コンテナIDと合わせること
-    static let cloudKitContainerID = "iCloud.com.example.Ashiato"
+    static let cloudKitContainerID = "iCloud.com.tk634.Ashiato"
 
     private init() {
         container = NSPersistentCloudKitContainer(name: "Ashiato")
