@@ -175,6 +175,16 @@ struct ContentView: View {
             // やわらかい配色(muted)+店舗アイコンなどを非表示にしてスッキリ見せる
             .mapStyle(.standard(elevation: .flat, emphasis: .muted,
                                 pointsOfInterest: .excludingAll, showsTraffic: false))
+            // 「旅日記の紙の地図」風: 彩度を少し上げて暖色を掛け合わせる
+            .saturation(1.15)
+            .colorMultiply(Color(hex: "FFEFDB"))
+            .overlay(
+                // 四隅にほんのり暖色のビネットを乗せて絵本っぽく
+                RadialGradient(colors: [.clear, Color(hex: "E8963E").opacity(0.12)],
+                               center: .center, startRadius: 250, endRadius: 800)
+                    .allowsHitTesting(false)
+                    .ignoresSafeArea()
+            )
             .onTapGesture { screenPoint in
                 guard let coord = proxy.convert(screenPoint, from: .local) else { return }
                 addCoordinate = coord
