@@ -85,6 +85,18 @@ extension Attachment {
     var commentText: String { comment ?? "" }
 }
 
+extension Place {
+    /// 一覧のひとこと表示: 最新コメント(なければ旧メモ欄の内容)
+    var snippetText: String? {
+        let comments = ((attachments as? Set<Attachment>) ?? [])
+            .filter { $0.imageData == nil && !($0.comment ?? "").isEmpty }
+            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+        if let latest = comments.first?.comment { return latest }
+        if let m = memo, !m.isEmpty { return m }
+        return nil
+    }
+}
+
 // MARK: - フィルター
 
 enum RegionFilter: String, CaseIterable, Identifiable {

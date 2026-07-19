@@ -19,9 +19,9 @@ struct PaywallView: View {
         .init(icon: "photo.on.rectangle.angled",
               title: "場所ごとの写真",
               detail: "訪れた場所に思い出の写真を無制限に残せます。"),
-        .init(icon: "text.bubble",
-              title: "コメントのタイムライン",
-              detail: "行くたびにコメントを追記。ふたりの記録が積み重なります。"),
+        .init(icon: "icloud",
+              title: "写真もiCloudで共有",
+              detail: "パートナーと同じアルバムのように、写真も一緒に見られます。"),
         .init(icon: "sparkles",
               title: "今後の新機能を先行提供",
               detail: "月別グラフや訪問国カウントなど、追加機能をいち早く。"),
@@ -69,7 +69,7 @@ struct PaywallView: View {
                 .foregroundStyle(.white, AppPalette.accent)
             Text("思い出をもっと豊かに")
                 .font(.title2.bold())
-            Text("写真とコメントで、地図の一つひとつのピンに物語を。")
+            Text("思い出の写真で、地図の一つひとつのピンに物語を。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

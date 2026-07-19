@@ -18,10 +18,9 @@ struct AddEditPlaceView: View {
     @State private var year: Int = 0
     @State private var visitDate: Date? = nil
     @State private var hasDate = false
-    @State private var memo = ""
     @State private var selectedIDs: Set<UUID> = []
 
-    // プレミアム: 写真・コメント
+    // コメント(無料) / 写真(プレミアム)
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var pendingImages: [Data] = []      // 圧縮済み。保存時に Attachment 化
     @State private var pendingComments: [String] = []  // 追加予定コメント
@@ -30,10 +29,18 @@ struct AddEditPlaceView: View {
 
     private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
 
-    /// 既存の添付(タイムライン: 新しい順)
-    private var existingAttachments: [Attachment] {
+    /// 既存のコメント(タイムライン: 新しい順)
+    private var existingComments: [Attachment] {
         guard let set = place?.attachments as? Set<Attachment> else { return [] }
-        return set.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+        return set.filter { $0.imageData == nil && !($0.comment ?? "").isEmpty }
+            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+    }
+
+    /// 既存の写真(新しい順)
+    private var existingPhotos: [Attachment] {
+        guard let set = place?.attachments as? Set<Attachment> else { return [] }
+        return set.filter { $0.imageData != nil }
+            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
     }
 
     var body: some View {
@@ -88,12 +95,8 @@ struct AddEditPlaceView: View {
                     }
                 }
 
-                Section("メモ") {
-                    TextField("思い出やひとことを", text: $memo, axis: .vertical)
-                        .lineLimit(2...4)
-                }
-
-                photoCommentSection
+                commentSection
+                photoSection
 
                 if place != nil {
                     Section {
@@ -119,22 +122,60 @@ struct AddEditPlaceView: View {
         }
     }
 
-    // MARK: - 写真・コメント(プレミアム)
+    // MARK: - コメント(無料)
+
+    private var commentSection: some View {
+        Section("コメント") {
+            // 追加予定コメント
+            ForEach(Array(pendingComments.enumerated()), id: \.offset) { i, text in
+                HStack {
+                    Image(systemName: "text.bubble").foregroundStyle(.secondary)
+                    Text(text)
+                    Spacer()
+                    Button { pendingComments.remove(at: i) } label: {
+                        Image(systemName: "minus.circle").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            // 既存コメントのタイムライン
+            ForEach(existingComments, id: \.objectID) { att in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(att.commentText)
+                    if let d = att.createdAt {
+                        Text(d.formatted(date: .abbreviated, time: .omitted))
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .onDelete { offsets in
+                offsets.map { existingComments[$0] }.forEach(context.delete)
+                try? context.save()
+            }
+            HStack {
+                TextField("思い出やひとことを", text: $newComment, axis: .vertical)
+                    .lineLimit(1...3)
+                Button("追加") {
+                    let t = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !t.isEmpty else { return }
+                    pendingComments.append(t)
+                    newComment = ""
+                }
+                .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    // MARK: - 写真(プレミアム)
 
     @ViewBuilder
-    private var photoCommentSection: some View {
-        Section {
+    private var photoSection: some View {
+        Section("写真") {
             if store.isPremium {
-                // 既存の添付タイムライン
-                ForEach(existingAttachments, id: \.objectID) { att in
-                    attachmentRow(att)
-                }
-                .onDelete(perform: deleteExistingAttachments)
-
-                // 追加予定の写真
-                if !pendingImages.isEmpty {
+                if !existingPhotos.isEmpty || !pendingImages.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
+                            // 追加予定の写真
                             ForEach(Array(pendingImages.enumerated()), id: \.offset) { i, data in
                                 ZStack(alignment: .topTrailing) {
                                     if let ui = UIImage(data: data) {
@@ -149,45 +190,38 @@ struct AddEditPlaceView: View {
                                     .padding(2)
                                 }
                             }
+                            // 既存の写真
+                            ForEach(existingPhotos, id: \.objectID) { att in
+                                ZStack(alignment: .topTrailing) {
+                                    if let ui = att.image {
+                                        Image(uiImage: ui).resizable().scaledToFill()
+                                            .frame(width: 72, height: 72)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                    Button {
+                                        context.delete(att)
+                                        try? context.save()
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.white, .black.opacity(0.5))
+                                    }
+                                    .padding(2)
+                                }
+                            }
                         }
                         .padding(.vertical, 2)
                     }
                 }
-
                 PhotosPicker(selection: $photoItems, maxSelectionCount: 5, matching: .images) {
                     Label("写真を追加", systemImage: "photo.on.rectangle.angled")
-                }
-
-                // 追加予定コメント
-                ForEach(Array(pendingComments.enumerated()), id: \.offset) { i, text in
-                    HStack {
-                        Image(systemName: "text.bubble").foregroundStyle(.secondary)
-                        Text(text)
-                        Spacer()
-                        Button { pendingComments.remove(at: i) } label: {
-                            Image(systemName: "minus.circle").foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                HStack {
-                    TextField("コメントを追加", text: $newComment, axis: .vertical)
-                        .lineLimit(1...3)
-                    Button("追加") {
-                        let t = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !t.isEmpty else { return }
-                        pendingComments.append(t)
-                        newComment = ""
-                    }
-                    .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             } else {
                 Button { showPaywall = true } label: {
                     HStack {
                         Image(systemName: "lock.fill").foregroundStyle(AppPalette.accent)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("写真とコメントを追加").foregroundStyle(.primary)
-                            Text("プレミアムで思い出をもっと残せます")
+                            Text("写真を追加").foregroundStyle(.primary)
+                            Text("プレミアムで思い出の写真を残せます")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -195,35 +229,7 @@ struct AddEditPlaceView: View {
                     }
                 }
             }
-        } header: {
-            Text("写真・コメント")
         }
-    }
-
-    private func attachmentRow(_ att: Attachment) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            if let ui = att.image {
-                Image(uiImage: ui).resizable().scaledToFill()
-                    .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                if !att.commentText.isEmpty {
-                    Text(att.commentText).font(.subheadline)
-                } else if att.image != nil {
-                    Text("写真").font(.caption).foregroundStyle(.secondary)
-                }
-                if let d = att.createdAt {
-                    Text(d.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private func deleteExistingAttachments(_ offsets: IndexSet) {
-        offsets.map { existingAttachments[$0] }.forEach(context.delete)
-        try? context.save()
     }
 
     private func importPickedPhotos(_ items: [PhotosPickerItem]) async {
@@ -245,7 +251,6 @@ struct AddEditPlaceView: View {
             year = Int(p.year)
             visitDate = p.visitDate
             hasDate = p.visitDate != nil
-            memo = p.memo ?? ""
             selectedIDs = Set(p.visitorIDList)
         } else {
             if members.count == 1, let id = members[0].id { selectedIDs = [id] }
@@ -272,24 +277,33 @@ struct AddEditPlaceView: View {
         p.isJapan = isJapan
         p.year = Int16(year)
         p.visitDate = hasDate ? visitDate : nil
-        p.memo = memo.trimmingCharacters(in: .whitespaces)
         p.visitorIDList = Array(selectedIDs)
 
-        // プレミアム: 追加予定の写真・コメントを Attachment 化(念のため課金状態も確認)
+        let now = Date()
+        // コメント(無料)
+        for text in pendingComments {
+            let att = Attachment(context: context)
+            att.id = UUID()
+            att.createdAt = now
+            att.comment = text
+            att.place = p
+        }
+        // 入力欄に残っている未追加のコメントも保存
+        let leftover = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !leftover.isEmpty {
+            let att = Attachment(context: context)
+            att.id = UUID()
+            att.createdAt = now
+            att.comment = leftover
+            att.place = p
+        }
+        // 写真(プレミアムのみ)
         if store.isPremium {
-            let now = Date()
             for data in pendingImages {
                 let att = Attachment(context: context)
                 att.id = UUID()
                 att.createdAt = now
                 att.imageData = data
-                att.place = p
-            }
-            for text in pendingComments {
-                let att = Attachment(context: context)
-                att.id = UUID()
-                att.createdAt = now
-                att.comment = text
                 att.place = p
             }
         }

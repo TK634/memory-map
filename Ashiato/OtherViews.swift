@@ -197,8 +197,8 @@ struct PlacesListView: View {
                                 if p.year > 0 { Text("\(String(p.year))年") }
                             }
                             .font(.caption2).foregroundStyle(.secondary)
-                            if let memo = p.memo, !memo.isEmpty {
-                                Text(memo).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            if let snippet = p.snippetText {
+                                Text(snippet).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                             }
                         }
                     }
