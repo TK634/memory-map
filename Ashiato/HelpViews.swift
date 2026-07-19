@@ -20,8 +20,9 @@ struct OnboardingView: View {
                 onboardPage(
                     icon: "hand.tap.fill",
                     iconColor: AppPalette.chrome,
-                    title: "地図をタップして記録",
-                    lines: ["行った場所を地図でタップ、または上の検索バーで探すと記録画面が開きます。",
+                    title: "タップでも、検索でも",
+                    lines: ["行った場所を地図でタップすると、その場で記録画面が開きます。",
+                            "場所がわかっているなら検索が早い。「京都」「パリ」と探して選ぶだけ。",
                             "場所の名前は自動で入ります。コメントも残せます。"]
                 ).tag(1)
 
