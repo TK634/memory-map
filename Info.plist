@@ -6,10 +6,9 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<!-- iCloud同期の有効/無効。entitlementsを外している間(Personal Team実機テスト)はfalse。
-	     Developer Program承認後にentitlements復元とセットでtrueに戻すこと -->
+	<!-- iCloud同期の有効/無効。entitlementsとセットで切り替えること -->
 	<key>AshiatoCloudEnabled</key>
-	<false/>
+	<true/>
 	<!-- 対応言語は日本語のみ。DatePicker等のシステムUIも日本語表示にする -->
 	<key>CFBundleLocalizations</key>
 	<array>
