@@ -49,86 +49,19 @@ struct AchievementsView: View {
         }
     }
 
-    private struct Badge: Identifiable {
-        let id: String
-        let icon: String
-        let condition: String
-        let unlocked: Bool
+    private var stats: BadgeStats {
+        BadgeCatalog.stats(places: places, members: members,
+                           visitedPrefs: visitedPrefs, countryCount: visitedCountries.count)
     }
-
-    /// コメント・写真の総数
-    private var commentCount: Int {
-        places.reduce(0) { sum, p in
-            sum + ((p.attachments as? Set<Attachment>) ?? []).filter { $0.imageData == nil && !($0.comment ?? "").isEmpty }.count
-        }
+    private var badges: [(def: BadgeDef, unlocked: Bool)] {
+        let s = stats
+        return BadgeCatalog.all.map { ($0, $0.isUnlocked(s)) }
     }
-    private var photoCount: Int {
-        places.reduce(0) { sum, p in
-            sum + ((p.attachments as? Set<Attachment>) ?? []).filter { $0.imageData != nil }.count
-        }
-    }
-    /// 訪問日がある記録の季節(春3-5 夏6-8 秋9-11 冬12-2)
-    private var seasonCount: Int {
-        let months = Set(places.compactMap { $0.visitDate }.map { Calendar.current.component(.month, from: $0) })
-        var seasons = Set<Int>()
-        for m in months {
-            switch m {
-            case 3...5: seasons.insert(0)
-            case 6...8: seasons.insert(1)
-            case 9...11: seasons.insert(2)
-            default: seasons.insert(3)
-            }
-        }
-        return seasons.count
-    }
-    /// 記録がある年の数
-    private var yearCount: Int {
-        Set(places.compactMap { $0.year > 0 ? $0.year : nil }).count
-    }
-    /// 2泊以上の旅の数(期間指定を使った記録)
-    private var longTripCount: Int {
-        places.filter { p in
-            guard let s = p.visitDate, let e = p.visitEndDate else { return false }
-            return (Calendar.current.dateComponents([.day], from: s, to: e).day ?? 0) >= 2
-        }.count
-    }
-
-    private var badges: [Badge] {
-        let p = places.count
-        let pref = visitedPrefs.count
-        let c = visitedCountries.count
-        return [
-            // 記録数
-            .init(id: "はじめてのあしあと", icon: "shoeprints.fill", condition: "最初の記録をつける", unlocked: p >= 1),
-            .init(id: "あしあと10", icon: "10.circle.fill", condition: "10か所記録する", unlocked: p >= 10),
-            .init(id: "あしあと30", icon: "30.circle.fill", condition: "30か所記録する", unlocked: p >= 30),
-            .init(id: "あしあと50", icon: "50.circle.fill", condition: "50か所記録する", unlocked: p >= 50),
-            .init(id: "あしあと100", icon: "flame.fill", condition: "100か所記録する", unlocked: p >= 100),
-            // 制県
-            .init(id: "制県スタート", icon: "map.fill", condition: "3都道府県に行く", unlocked: pref >= 3),
-            .init(id: "制県の旅人", icon: "signpost.right.fill", condition: "10都道府県に行く", unlocked: pref >= 10),
-            .init(id: "制県マスター", icon: "crown.fill", condition: "25都道府県に行く", unlocked: pref >= 25),
-            .init(id: "全県制覇", icon: "trophy.fill", condition: "47都道府県すべてに行く", unlocked: pref >= 47),
-            // 場所もの
-            .init(id: "北の大地", icon: "snowflake", condition: "北海道に行く", unlocked: visitedPrefs.contains("北海道")),
-            .init(id: "南国のあしあと", icon: "sun.max.fill", condition: "沖縄県に行く", unlocked: visitedPrefs.contains("沖縄県")),
-            .init(id: "三大都市めぐり", icon: "building.2.fill", condition: "東京・大阪・愛知に行く",
-                  unlocked: visitedPrefs.isSuperset(of: ["東京都", "大阪府", "愛知県"])),
-            // 海外
-            .init(id: "はじめての海外", icon: "airplane", condition: "海外に1か国行く", unlocked: c >= 1),
-            .init(id: "世界を歩く", icon: "globe.asia.australia.fill", condition: "5か国に行く", unlocked: c >= 5),
-            .init(id: "世界の旅人", icon: "globe.europe.africa.fill", condition: "10か国に行く", unlocked: c >= 10),
-            // 旅のスタイル
-            .init(id: "泊まりの旅", icon: "moon.stars.fill", condition: "2泊以上の旅を記録する", unlocked: longTripCount >= 1),
-            .init(id: "春夏秋冬", icon: "leaf.fill", condition: "4つの季節すべてで記録する", unlocked: seasonCount >= 4),
-            .init(id: "旅の歴史家", icon: "book.fill", condition: "3つの年の記録をつける", unlocked: yearCount >= 3),
-            // ふたり・思い出
-            .init(id: "ふたりのはじまり", icon: "heart.circle.fill", condition: "全員で1か所行く", unlocked: togetherCount >= 1),
-            .init(id: "みんなの思い出", icon: "heart.fill", condition: "全員で5か所行く", unlocked: togetherCount >= 5),
-            .init(id: "ことばのあしあと", icon: "text.bubble.fill", condition: "コメントを10件書く", unlocked: commentCount >= 10),
-            .init(id: "おもいでカメラ", icon: "camera.fill", condition: "写真を10枚残す", unlocked: photoCount >= 10),
-        ]
-    }
+    private var commentCount: Int { stats.commentCount }
+    private var photoCount: Int { stats.photoCount }
+    private var seasonCount: Int { stats.seasonCount }
+    private var yearCount: Int { stats.yearCount }
+    private var longTripCount: Int { stats.longTripCount }
 
     // MARK: - UI
 
@@ -165,7 +98,7 @@ struct AchievementsView: View {
                     print("[実績検証] 国: \(visitedCountries.count) -> \(visitedCountries.sorted())")
                     print("[実績検証] 全員の場所: \(togetherCount), コメント: \(commentCount), 写真: \(photoCount), 季節: \(seasonCount), 年数: \(yearCount), 連泊: \(longTripCount)")
                     for b in badges {
-                        print("[実績検証] \(b.unlocked ? "✅" : "🔒") \(b.id) (\(b.condition))")
+                        print("[実績検証] \(b.unlocked ? "✅" : "🔒") \(b.def.id) (\(b.def.condition))")
                     }
                 }
                 #endif
@@ -186,10 +119,33 @@ struct AchievementsView: View {
         }
     }
 
+    /// 「あと◯」の残り表示(ゴールが近いほどやる気が出る)
+    private func remainingText(for badge: BadgeDef) -> String? {
+        let s = stats
+        let targets: [(String, Int, Int, String)] = [
+            ("あしあと10", s.placeCount, 10, "か所"),
+            ("あしあと30", s.placeCount, 30, "か所"),
+            ("あしあと50", s.placeCount, 50, "か所"),
+            ("あしあと100", s.placeCount, 100, "か所"),
+            ("制県スタート", s.prefCount, 3, "県"),
+            ("制県の旅人", s.prefCount, 10, "県"),
+            ("制県マスター", s.prefCount, 25, "県"),
+            ("全県制覇", s.prefCount, 47, "県"),
+            ("世界を歩く", s.countryCount, 5, "か国"),
+            ("世界の旅人", s.countryCount, 10, "か国"),
+            ("みんなの思い出", s.togetherCount, 5, "か所"),
+            ("ことばのあしあと", s.commentCount, 10, "件"),
+            ("おもいでカメラ", s.photoCount, 10, "枚"),
+        ]
+        guard let t = targets.first(where: { $0.0 == badge.id }) else { return nil }
+        let remain = t.2 - t.1
+        return remain > 0 ? "あと\(remain)\(t.3)" : nil
+    }
+
     /// 次の目標カード(旅行しない期間もアプリを開く理由をつくる)
     @ViewBuilder
     private var nextGoalCard: some View {
-        let nextBadge = badges.first { !$0.unlocked }
+        let nextBadge = badges.first { !$0.unlocked }?.def
         let unvisited = Self.prefOrder.filter { !visitedPrefs.contains($0) }
         VStack(alignment: .leading, spacing: 12) {
             Label("次のあしあと", systemImage: "sparkles")
@@ -202,11 +158,18 @@ struct AchievementsView: View {
                             .font(.system(size: 19, weight: .bold))
                             .foregroundStyle(AppPalette.accent)
                     }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("あと少しで「\(nextBadge.id)」")
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("次は「\(nextBadge.id)」")
                             .font(.subheadline.bold())
                         Text(nextBadge.condition)
                             .font(.caption).foregroundStyle(.secondary)
+                        if let remain = remainingText(for: nextBadge) {
+                            Text(remain)
+                                .font(.caption2.bold())
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(AppPalette.accent, in: Capsule())
+                        }
                     }
                 }
             }
@@ -300,20 +263,20 @@ struct AchievementsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("バッジ", systemImage: "rosette").font(.headline)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 14) {
-                ForEach(badges) { badge in
+                ForEach(badges, id: \.def.id) { badge in
                     VStack(spacing: 6) {
                         ZStack {
                             Circle()
                                 .fill(badge.unlocked ? AppPalette.accent : Color.gray.opacity(0.15))
                                 .frame(width: 58, height: 58)
-                            Image(systemName: badge.unlocked ? badge.icon : "lock.fill")
+                            Image(systemName: badge.unlocked ? badge.def.icon : "lock.fill")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundStyle(badge.unlocked ? .white : Color.gray.opacity(0.5))
                         }
-                        Text(badge.id)
+                        Text(badge.def.id)
                             .font(.system(size: 11, weight: .bold))
                             .lineLimit(1).minimumScaleFactor(0.7)
-                        Text(badge.condition)
+                        Text(badge.def.condition)
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
                             .lineLimit(2)

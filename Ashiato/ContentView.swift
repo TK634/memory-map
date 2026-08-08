@@ -46,6 +46,8 @@ struct ContentView: View {
         MemoryLane.todaysMemories(from: allPlaces.map { $0 })
     }
 
+    @StateObject private var celebration = CelebrationCenter.shared
+
     // アニメ調フラット地図の塗り分けデータ(起動後に非同期読み込み)
     @State private var countryRegions: [GeoRegion] = []
     @State private var prefRegions: [GeoRegion] = []
@@ -87,6 +89,12 @@ struct ContentView: View {
             MemoryLane.scheduleDailyReminder(places: allPlaces.map { $0 })
             #if DEBUG
             DemoSeeder.seedIfRequested(context: context, log: log)
+            if ProcessInfo.processInfo.arguments.contains("-demoCelebration") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    showOnboarding = false
+                    celebration.pending = [.prefecture(name: "京都府", count: 8)]
+                }
+            }
             if ProcessInfo.processInfo.arguments.contains("-openFirstPlace") {
                 // 記録画面の見た目確認用: 最初のピンの編集画面を開く
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -164,6 +172,25 @@ struct ContentView: View {
         .sheet(isPresented: $showShare) {
             if let info = shareInfo {
                 CloudSharingView(share: info.0, container: info.1)
+            }
+        }
+        // 記録が増えたら実績の解放を判定して祝う
+        .onChange(of: allPlaces.count) { _, _ in
+            celebration.check(places: allPlaces.map { $0 }, members: members,
+                              prefRegions: prefRegions)
+        }
+        .onChange(of: prefRegions.count) { _, _ in
+            celebration.check(places: allPlaces.map { $0 }, members: members,
+                              prefRegions: prefRegions)
+        }
+        .overlay {
+            if let kind = celebration.pending.first {
+                CelebrationOverlay(kind: kind) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        if !celebration.pending.isEmpty { celebration.pending.removeFirst() }
+                    }
+                }
+                .transition(.opacity)
             }
         }
     }
