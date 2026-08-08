@@ -4,7 +4,11 @@ import SwiftUI
 
 struct OnboardingView: View {
     let onFinish: () -> Void
+    /// 最後のページの「招待する」から呼ばれる
+    var onInvite: (() -> Void)? = nil
     @State private var page = 0
+
+    private let lastPage = 4
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,7 +18,8 @@ struct OnboardingView: View {
                     iconColor: AppPalette.accent,
                     title: "あしあとへようこそ",
                     lines: ["行った場所に「あしあと」を残す地図アプリです。",
-                            "ふたりの思い出も、ひとり旅の記録も、地図がアルバムになります。"]
+                            "旅行はもちろん、はじめて行ったお店や公園、休日のおでかけも。",
+                            "積み重ねた場所が、ふたりの思い出の地図になります。"]
                 ).tag(0)
 
                 onboardPage(
@@ -32,33 +37,77 @@ struct OnboardingView: View {
                     iconColor: AppPalette.together,
                     title: "ふたりで共有",
                     lines: ["メンバー画面(人型ボタン)で家族や友達を登録。",
-                            "共有ボタン(↑)から招待すると、相手のiPhoneでも同じ地図を一緒に編集できます。"]
+                            "招待すると、相手のiPhoneでも同じ地図を一緒に編集できます。"]
                 ).tag(3)
+
+                invitePage.tag(4)
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
 
-            Button {
-                if page < 3 { withAnimation { page += 1 } }
-                else { onFinish() }
-            } label: {
-                Text(page < 3 ? "次へ" : "はじめる")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(AppPalette.chrome, in: RoundedRectangle(cornerRadius: 14))
-                    .foregroundStyle(.white)
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
+            if page == lastPage {
+                // 最後は「招待する」を主ボタンに(みてね/TimeTree式: 招待を後回しにさせない)
+                Button {
+                    onFinish()
+                    onInvite?()
+                } label: {
+                    Label("パートナーを招待する", systemImage: "person.badge.plus")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(AppPalette.accent, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 10)
 
-            Button("スキップ") { onFinish() }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 12)
-                .opacity(page < 3 ? 1 : 0)
+                Button("あとで(ひとりではじめる)") { onFinish() }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 12)
+            } else {
+                Button {
+                    withAnimation { page += 1 }
+                } label: {
+                    Text("次へ")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(AppPalette.chrome, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 10)
+
+                Button("スキップ") { onFinish() }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 12)
+            }
         }
         .interactiveDismissDisabled()
+    }
+
+    /// 招待を促す最終ページ
+    private var invitePage: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: "person.badge.plus")
+                .font(.system(size: 64))
+                .foregroundStyle(AppPalette.accent)
+            Text("ひとりより、ふたりで").font(.title2.bold())
+            VStack(spacing: 8) {
+                Text("相手が記録した場所も同じ地図に集まります。")
+                Text("「どこ行ったっけ?」がなくなり、次の行き先も決めやすくなります。")
+                Text("招待はメッセージやLINEで送るだけ。相手の登録も不要です。")
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 32)
+            Spacer()
+            Spacer()
+        }
     }
 
     private func onboardPage(icon: String, iconColor: Color, title: String, lines: [String]) -> some View {

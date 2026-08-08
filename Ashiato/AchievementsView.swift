@@ -136,6 +136,7 @@ struct AchievementsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    nextGoalCard
                     seikenCard
                     worldCard
                     badgeGrid
@@ -183,6 +184,55 @@ struct AchievementsView: View {
         if let ui = renderer.uiImage {
             shareImage = Image(uiImage: ui)
         }
+    }
+
+    /// 次の目標カード(旅行しない期間もアプリを開く理由をつくる)
+    @ViewBuilder
+    private var nextGoalCard: some View {
+        let nextBadge = badges.first { !$0.unlocked }
+        let unvisited = Self.prefOrder.filter { !visitedPrefs.contains($0) }
+        VStack(alignment: .leading, spacing: 12) {
+            Label("次のあしあと", systemImage: "sparkles")
+                .font(.headline)
+            if let nextBadge {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle().fill(AppPalette.accent.opacity(0.15)).frame(width: 46, height: 46)
+                        Image(systemName: nextBadge.icon)
+                            .font(.system(size: 19, weight: .bold))
+                            .foregroundStyle(AppPalette.accent)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("あと少しで「\(nextBadge.id)」")
+                            .font(.subheadline.bold())
+                        Text(nextBadge.condition)
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if !unvisited.isEmpty {
+                Divider()
+                Text("まだあしあとのない場所")
+                    .font(.caption.bold()).foregroundStyle(.secondary)
+                // 未踏の中から3県を提案(日替わりで変わる)
+                let seed = Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
+                let picks = (0..<min(3, unvisited.count)).map { i in
+                    unvisited[(seed &* 7 &+ i &* 17) % unvisited.count]
+                }
+                HStack(spacing: 8) {
+                    ForEach(Array(Set(picks)).sorted(), id: \.self) { name in
+                        Text(name)
+                            .font(.caption.bold())
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(Color.gray.opacity(0.12), in: Capsule())
+                    }
+                }
+                Text("次のおでかけの行き先にどうぞ。")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .background(.white, in: RoundedRectangle(cornerRadius: 18))
     }
 
     /// 制県レベルカード

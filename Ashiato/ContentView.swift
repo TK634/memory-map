@@ -76,10 +76,12 @@ struct ContentView: View {
             #endif
         }
         .sheet(isPresented: $showOnboarding) {
-            OnboardingView {
+            OnboardingView(onFinish: {
                 hasSeenOnboarding = true
                 showOnboarding = false
-            }
+            }, onInvite: {
+                Task { await prepareShare() }
+            })
         }
         .sheet(isPresented: $showHelp, onDismiss: {
             if replayTutorial { replayTutorial = false; showOnboarding = true }
