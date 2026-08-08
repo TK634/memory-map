@@ -39,6 +39,7 @@
         <relationship name="place" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Place" inverseName="reactions" inverseEntity="Place"/>
     </entity>
     <entity name="TravelLog" representedClassName="TravelLog" syncable="YES" codeGenerationType="class">
+        <attribute name="premiumUntil" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="title" optional="YES" attributeType="String"/>
         <relationship name="members" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Member" inverseName="log" inverseEntity="Member"/>

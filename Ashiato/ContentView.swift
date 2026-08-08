@@ -47,6 +47,7 @@ struct ContentView: View {
     }
 
     @StateObject private var celebration = CelebrationCenter.shared
+    @EnvironmentObject private var store: StoreManager
 
     // アニメ調フラット地図の塗り分けデータ(起動後に非同期読み込み)
     @State private var countryRegions: [GeoRegion] = []
@@ -87,6 +88,7 @@ struct ContentView: View {
             if !hasSeenOnboarding { showOnboarding = true }
             // 今日の思い出があれば翌朝9時に通知(旅行しない日も開く理由をつくる)
             MemoryLane.scheduleDailyReminder(places: allPlaces.map { $0 })
+            syncSharedPremium()
             #if DEBUG
             DemoSeeder.seedIfRequested(context: context, log: log)
             if ProcessInfo.processInfo.arguments.contains("-demoCelebration") {
@@ -174,6 +176,7 @@ struct ContentView: View {
                 CloudSharingView(share: info.0, container: info.1)
             }
         }
+        .onChange(of: store.isPremium) { _, _ in syncSharedPremium() }
         // 記録が増えたら実績の解放を判定して祝う
         .onChange(of: allPlaces.count) { _, _ in
             celebration.check(places: allPlaces.map { $0 }, members: members,
@@ -394,6 +397,18 @@ struct ContentView: View {
     }
 
     // MARK: - 共有
+
+    /// 自分が課金者なら、共有相手も使えるよう記録帳に有効期限を書き込む
+    private func syncSharedPremium() {
+        if store.isPremium {
+            SharedPremium.markActive(log: log, in: context)
+        } else if !SharedPremium.isActive(log) {
+            // 期限切れの掃除(自分の記録帳のときのみ)
+            if !PersistenceController.shared.isShared(object: log) {
+                SharedPremium.clear(log: log, in: context)
+            }
+        }
+    }
 
     private func prepareShare() async {
         do {

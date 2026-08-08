@@ -44,6 +44,15 @@ struct AddEditPlaceView: View {
 
     private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
 
+    /// 写真を使えるか(自分の課金、または共有相手の課金でも可)
+    private var canUsePhotos: Bool {
+        store.isPremium || SharedPremium.isActive(log)
+    }
+    /// 共有相手の課金のおかげで使えている状態か(表示の出し分け用)
+    private var isSharedPremium: Bool {
+        !store.isPremium && SharedPremium.isActive(log)
+    }
+
     /// リアクションの署名に使う自分の名前(設定した「自分」のメンバー名)
     private var myMemberName: String? {
         guard let idString = UserDefaults.standard.string(forKey: "myMemberID"),
@@ -290,12 +299,17 @@ struct AddEditPlaceView: View {
     @ViewBuilder
     private var photoSection: some View {
         Section {
-            if store.isPremium {
+            if canUsePhotos {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Label("写真", systemImage: "photo.on.rectangle.angled")
                             .font(.subheadline.bold())
                         Spacer()
+                        if isSharedPremium {
+                            Label("共有プレミアム", systemImage: "person.2.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(AppPalette.accent)
+                        }
                         if !allPhotoImages.isEmpty {
                             Text("\(allPhotoImages.count)枚")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -500,7 +514,7 @@ struct AddEditPlaceView: View {
             att.id = UUID(); att.createdAt = now
             att.comment = text; att.authorName = myMemberName; att.place = p
         }
-        if store.isPremium {
+        if canUsePhotos {
             for data in pendingImages {
                 let att = Attachment(context: context)
                 att.id = UUID(); att.createdAt = now
@@ -597,7 +611,7 @@ struct AddEditPlaceView: View {
             att.place = p
         }
         // 写真(プレミアムのみ)
-        if store.isPremium {
+        if canUsePhotos {
             for data in pendingImages {
                 let att = Attachment(context: context)
                 att.id = UUID()

@@ -48,6 +48,10 @@ struct MembersView: View {
                         try? context.save()
                     }
                 }
+                if members.count >= SharedPremium.maxMembers {
+                    Text("プレミアムを共有できるのは\(SharedPremium.maxMembers)人までです。これ以上のメンバーも登録できますが、写真は各自の課金が必要になります。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Button {
                     let m = Member(context: context)
                     m.id = UUID()
