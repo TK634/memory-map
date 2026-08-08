@@ -29,6 +29,7 @@ struct AddEditPlaceView: View {
     @State private var pendingComments: [String] = []  // 追加予定コメント
     @State private var newComment = ""
     @State private var showPaywall = false
+    @State private var viewerIndex: Int?
 
     private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
 
@@ -151,6 +152,33 @@ struct AddEditPlaceView: View {
             .onAppear(perform: load)
             .onChange(of: photoItems) { _, items in Task { await importPickedPhotos(items) } }
             .sheet(isPresented: $showPaywall) { PaywallView() }
+            .fullScreenCover(item: Binding(
+                get: { viewerIndex.map { ViewerTarget(index: $0) } },
+                set: { viewerIndex = $0?.index }
+            )) { target in
+                PhotoViewer(images: allPhotoImages,
+                            captions: allPhotoImages.map { _ in nil },
+                            index: min(target.index, max(0, allPhotoImages.count - 1))) { i in
+                    deletePhoto(at: i)
+                }
+            }
+        }
+    }
+
+    private struct ViewerTarget: Identifiable {
+        let index: Int
+        var id: Int { index }
+    }
+
+    /// ビューアからの削除(追加予定分と保存済み分を通し番号で扱う)
+    private func deletePhoto(at index: Int) {
+        if index < pendingImages.count {
+            pendingImages.remove(at: index)
+        } else {
+            let i = index - pendingImages.count
+            guard i < existingPhotos.count else { return }
+            context.delete(existingPhotos[i])
+            try? context.save()
         }
     }
 
@@ -202,66 +230,124 @@ struct AddEditPlaceView: View {
 
     @ViewBuilder
     private var photoSection: some View {
-        Section("写真") {
+        Section {
             if store.isPremium {
-                if !existingPhotos.isEmpty || !pendingImages.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            // 追加予定の写真
-                            ForEach(Array(pendingImages.enumerated()), id: \.offset) { i, data in
-                                ZStack(alignment: .topTrailing) {
-                                    if let ui = UIImage(data: data) {
-                                        Image(uiImage: ui).resizable().scaledToFill()
-                                            .frame(width: 72, height: 72)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    }
-                                    Button { pendingImages.remove(at: i) } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundStyle(.white, .black.opacity(0.5))
-                                    }
-                                    .padding(2)
-                                }
-                            }
-                            // 既存の写真
-                            ForEach(existingPhotos, id: \.objectID) { att in
-                                ZStack(alignment: .topTrailing) {
-                                    if let ui = att.image {
-                                        Image(uiImage: ui).resizable().scaledToFill()
-                                            .frame(width: 72, height: 72)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    }
-                                    Button {
-                                        context.delete(att)
-                                        try? context.save()
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundStyle(.white, .black.opacity(0.5))
-                                    }
-                                    .padding(2)
-                                }
-                            }
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label("写真", systemImage: "photo.on.rectangle.angled")
+                            .font(.subheadline.bold())
+                        Spacer()
+                        if !allPhotoImages.isEmpty {
+                            Text("\(allPhotoImages.count)枚")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
-                        .padding(.vertical, 2)
+                    }
+
+                    if allPhotoImages.isEmpty {
+                        PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
+                            VStack(spacing: 8) {
+                                Image(systemName: "photo.badge.plus")
+                                    .font(.system(size: 30))
+                                    .foregroundStyle(AppPalette.accent)
+                                Text("写真を追加")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(AppPalette.accent)
+                                Text("この場所の思い出を残そう")
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 28)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(hex: "FFF6EA"))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .strokeBorder(AppPalette.accent.opacity(0.3),
+                                                  style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                            )
+                        }
+                    } else {
+                        photoGrid
+                        PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
+                            Label("写真を追加", systemImage: "plus")
+                                .font(.footnote.bold())
+                                .foregroundStyle(AppPalette.accent)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(AppPalette.accent.opacity(0.1),
+                                            in: RoundedRectangle(cornerRadius: 12))
+                        }
                     }
                 }
-                PhotosPicker(selection: $photoItems, maxSelectionCount: 5, matching: .images) {
-                    Label("写真を追加", systemImage: "photo.on.rectangle.angled")
-                }
+                .padding(.vertical, 4)
+                .listRowInsets(EdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14))
             } else {
                 Button { showPaywall = true } label: {
-                    HStack {
-                        Image(systemName: "lock.fill").foregroundStyle(AppPalette.accent)
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(AppPalette.accent.opacity(0.12))
+                                .frame(width: 52, height: 52)
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 21))
+                                .foregroundStyle(AppPalette.accent)
+                        }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("写真を追加").foregroundStyle(.primary)
-                            Text("プレミアムで思い出の写真を残せます")
+                            Text("写真を残す").font(.subheadline.bold()).foregroundStyle(.primary)
+                            Text("プレミアムで思い出の写真を無制限に")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                        Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
         }
+    }
+
+    /// SNS風の写真グリッド。1枚なら大きく、複数なら2列
+    @ViewBuilder
+    private var photoGrid: some View {
+        let images = allPhotoImages
+        if images.count == 1 {
+            photoTile(images[0], index: 0, height: 240)
+        } else {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)],
+                      spacing: 6) {
+                ForEach(Array(images.enumerated()), id: \.offset) { i, img in
+                    photoTile(img, index: i, height: 130)
+                }
+            }
+        }
+    }
+
+    private func photoTile(_ image: UIImage, index: Int, height: CGFloat) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFill()
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(alignment: .topTrailing) {
+                // 保存前の写真には印をつける
+                if index < pendingImages.count {
+                    Text("新規")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(AppPalette.accent, in: Capsule())
+                        .padding(7)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 14))
+            .onTapGesture { viewerIndex = index }
+    }
+
+    /// 追加予定+保存済みの全写真
+    private var allPhotoImages: [UIImage] {
+        pendingImages.compactMap(UIImage.init(data:)) + existingPhotos.compactMap(\.image)
     }
 
     private func importPickedPhotos(_ items: [PhotosPickerItem]) async {

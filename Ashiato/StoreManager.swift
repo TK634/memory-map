@@ -19,6 +19,10 @@ final class StoreManager: ObservableObject {
     private var updatesTask: Task<Void, Never>?
 
     init() {
+        #if DEBUG
+        // 検証用: 起動引数 -premium でプレミアム扱いにする
+        if ProcessInfo.processInfo.arguments.contains("-premium") { isPremium = true }
+        #endif
         // アプリ生存中ずっとトランザクション更新を監視(購入・返金・他デバイスでの購入を反映)
         updatesTask = Task { [weak self] in
             for await result in Transaction.updates {

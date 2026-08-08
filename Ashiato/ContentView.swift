@@ -99,7 +99,7 @@ struct ContentView: View {
                 // 記録画面の見た目確認用: 最初のピンの編集画面を開く
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     showOnboarding = false
-                    editingPlace = allPlaces.first { $0.name == "東京" } ?? allPlaces.first
+                    editingPlace = allPlaces.first { $0.name == (ProcessInfo.processInfo.arguments.contains("-openPhotoPlace") ? "那覇" : "東京") } ?? allPlaces.first
                 }
             }
             if DemoSeeder.shouldShowAchievements {
