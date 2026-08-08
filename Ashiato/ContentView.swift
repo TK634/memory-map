@@ -66,6 +66,13 @@ struct ContentView: View {
             if !hasSeenOnboarding { showOnboarding = true }
             #if DEBUG
             DemoSeeder.seedIfRequested(context: context, log: log)
+            if ProcessInfo.processInfo.arguments.contains("-openFirstPlace") {
+                // 記録画面の見た目確認用: 最初のピンの編集画面を開く
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    showOnboarding = false
+                    editingPlace = allPlaces.first { $0.name == "東京" } ?? allPlaces.first
+                }
+            }
             if DemoSeeder.shouldShowAchievements {
                 // GeoJSON読み込みを待ってから実績を開く(検証・スクショ用)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {

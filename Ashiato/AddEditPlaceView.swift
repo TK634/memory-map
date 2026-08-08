@@ -119,9 +119,11 @@ struct AddEditPlaceView: View {
                 }
 
                 if let place {
-                    Section("リアクション") {
+                    Section {
                         ReactionBar(place: place, myName: myMemberName)
-                            .padding(.vertical, 2)
+                            .padding(.vertical, 6)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                            .listRowBackground(Color.clear)
                     }
                 }
 

@@ -81,6 +81,15 @@ enum DemoSeeder {
             }
         }
 
+        // 見た目確認用のリアクション(スクショ・デザイン検証)
+        if ProcessInfo.processInfo.arguments.contains("-seedReactions") {
+            for (emoji, who) in [("❤️", "タカ"), ("❤️", "ハナ"), ("🎉", "ハナ"), ("📸", "タカ")] {
+                let r = Reaction(context: context)
+                r.id = UUID(); r.emoji = emoji; r.createdAt = Date(); r.authorName = who
+                r.place = tokyo
+            }
+        }
+
         try? context.save()
         print("[DemoSeeder] サンプルデータ投入完了")
 
