@@ -8,11 +8,36 @@ struct ReactionBar: View {
     /// 自分の名前(メンバー名。未設定なら nil)
     let myName: String?
 
+    /// よく使う6つ(常に表示)
     static let choices = ["❤️", "👍", "😊", "🎉", "🍜", "📸"]
+
+    /// カテゴリ別の全スタンプ(「もっと」で表示)
+    static let categories: [(name: String, icon: String, emojis: [String])] = [
+        ("きもち", "heart.fill",
+         ["❤️", "😍", "🥰", "😊", "😆", "🤩", "👍", "👏", "🙌", "✨", "💯", "🥺", "😭", "🤣", "😴", "🫶"]),
+        ("たべる", "fork.knife",
+         ["🍜", "🍣", "🍱", "🍰", "🍦", "🍺", "☕️", "🍕", "🍖", "🥟", "🍧", "🍹", "🍶", "🧁", "🍩", "🥐"]),
+        ("たび", "airplane",
+         ["✈️", "🚄", "🚗", "⛴️", "🗼", "⛩️", "🏯", "🏝️", "🗻", "🏔️", "🌊", "🎢", "🏨", "🚌", "🧳", "🗺️"]),
+        ("しぜん", "leaf.fill",
+         ["🌸", "🍁", "🌻", "❄️", "☀️", "🌈", "🌙", "⭐️", "🌷", "🍀", "🌲", "🦌", "🐟", "🐈", "🌅", "🎇"]),
+        ("イベント", "party.popper.fill",
+         ["🎉", "🎊", "🎂", "🎁", "💐", "🎄", "🎃", "🎆", "💍", "👶", "🎓", "🏆", "🎤", "⚽️", "🎡", "🛍️"]),
+    ]
 
     @State private var poppingEmoji: String?      // 押した瞬間に弾ませる対象
     @State private var floatingEmoji: String?     // ふわっと浮かぶ演出
     @State private var floatID = UUID()
+    @State private var showAllStamps = false
+
+    /// 起動引数でスタンプ選択シートを自動表示(デザイン確認用)
+    private var autoOpenPicker: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-openStampPicker")
+        #else
+        false
+        #endif
+    }
 
     private var reactions: [Reaction] {
         ((place.reactions as? Set<Reaction>) ?? [])
@@ -38,16 +63,38 @@ struct ReactionBar: View {
         reactions.compactMap(\.authorName).uniqued()
     }
 
+    /// 手前に出す6つ: 最近使ったスタンプを優先し、足りない分は既定から補う
+    private var quickStamps: [String] {
+        let recent = UserDefaults.standard.stringArray(forKey: "recentStamps") ?? []
+        return Array((recent + Self.choices).uniqued().prefix(6))
+    }
+
+    /// 使ったスタンプを履歴の先頭へ
+    private func rememberStamp(_ emoji: String) {
+        let recent = UserDefaults.standard.stringArray(forKey: "recentStamps") ?? []
+        let updated = Array(([emoji] + recent).uniqued().prefix(12))
+        UserDefaults.standard.set(updated, forKey: "recentStamps")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // 選べるスタンプ(横一列・押すと弾む)
-            HStack(spacing: 10) {
-                ForEach(Self.choices, id: \.self) { emoji in
+            // 選べるスタンプ(よく使う6つ+もっと)
+            HStack(spacing: 8) {
+                ForEach(quickStamps, id: \.self) { emoji in
                     stampButton(emoji)
                 }
+                Button { showAllStamps = true } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(AppPalette.accent)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(.white)
+                            .shadow(color: .black.opacity(0.06), radius: 2, y: 1))
+                }
+                .buttonStyle(.plain)
             }
             .padding(.vertical, 10)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
             .background(
                 LinearGradient(colors: [Color(hex: "FFF6EA"), Color(hex: "FFEBD3")],
@@ -82,6 +129,17 @@ struct ReactionBar: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+        }
+        .onAppear {
+            if autoOpenPicker {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { showAllStamps = true }
+            }
+        }
+        .sheet(isPresented: $showAllStamps) {
+            StampPickerView(myEmojis: Set(summary.filter(\.mine).map(\.emoji))) { emoji in
+                toggle(emoji)
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -158,6 +216,7 @@ struct ReactionBar: View {
                 r.createdAt = Date()
                 r.authorName = myName
                 r.place = place
+                rememberStamp(emoji)
                 // 追加時だけ浮き上がる演出
                 floatID = UUID()
                 floatingEmoji = emoji
@@ -167,6 +226,85 @@ struct ReactionBar: View {
             }
         }
         try? context.save()
+    }
+}
+
+/// カテゴリ別のスタンプ選択シート
+struct StampPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    /// 自分が既に付けているスタンプ(チェック表示用)
+    let myEmojis: Set<String>
+    let onSelect: (String) -> Void
+
+    @State private var categoryIndex = 0
+
+    private var categories: [(name: String, icon: String, emojis: [String])] {
+        ReactionBar.categories
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // カテゴリタブ
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(categories.enumerated()), id: \.offset) { i, cat in
+                            Button {
+                                withAnimation(.easeOut(duration: 0.2)) { categoryIndex = i }
+                            } label: {
+                                Label(cat.name, systemImage: cat.icon)
+                                    .font(.caption.bold())
+                                    .padding(.horizontal, 12).padding(.vertical, 8)
+                                    .background(categoryIndex == i
+                                                ? AnyShapeStyle(AppPalette.accent)
+                                                : AnyShapeStyle(Color.gray.opacity(0.12)),
+                                                in: Capsule())
+                                    .foregroundStyle(categoryIndex == i ? .white : AppPalette.chrome)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+
+                // スタンプ一覧
+                ScrollView {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5),
+                              spacing: 14) {
+                        ForEach(categories[categoryIndex].emojis, id: \.self) { emoji in
+                            Button {
+                                onSelect(emoji)
+                                dismiss()
+                            } label: {
+                                Text(emoji)
+                                    .font(.system(size: 30))
+                                    .frame(width: 56, height: 56)
+                                    .background(
+                                        Circle().fill(.white)
+                                            .shadow(color: .black.opacity(0.07), radius: 3, y: 2)
+                                    )
+                                    .overlay(
+                                        Circle().stroke(AppPalette.accent,
+                                                        lineWidth: myEmojis.contains(emoji) ? 2.5 : 0)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
+                }
+            }
+            .background(
+                LinearGradient(colors: [Color(hex: "FFF8EF"), Color(hex: "FFF1E0")],
+                               startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea()
+            )
+            .navigationTitle("スタンプを選ぶ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("閉じる") { dismiss() } } }
+        }
     }
 }
 
