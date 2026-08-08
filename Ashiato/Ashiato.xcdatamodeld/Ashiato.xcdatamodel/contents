@@ -27,7 +27,15 @@
         <attribute name="visitorIDs" optional="YES" attributeType="String"/>
         <attribute name="year" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="attachments" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Attachment" inverseName="place" inverseEntity="Attachment"/>
+        <relationship name="reactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Reaction" inverseName="place" inverseEntity="Reaction"/>
         <relationship name="log" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="TravelLog" inverseName="places" inverseEntity="TravelLog"/>
+    </entity>
+    <entity name="Reaction" representedClassName="Reaction" syncable="YES" codeGenerationType="class">
+        <attribute name="authorName" optional="YES" attributeType="String"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="emoji" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <relationship name="place" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Place" inverseName="reactions" inverseEntity="Place"/>
     </entity>
     <entity name="TravelLog" representedClassName="TravelLog" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>

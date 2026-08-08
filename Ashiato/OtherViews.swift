@@ -14,12 +14,26 @@ struct MembersView: View {
     @FetchRequest(sortDescriptors: [SortDescriptor(\Member.createdAt)])
     private var members: FetchedResults<Member>
 
+    /// リアクションの署名に使う「自分」のメンバーID
+    @AppStorage("myMemberID") private var myMemberID = ""
+
     var body: some View {
         NavigationStack {
             List {
-                Section(footer: Text("この記録は共有ボタンから招待した相手と一緒に見られます。")) {
+                Section(footer: Text("名前をタップして編集。右の丸をタップすると「自分」を設定でき、リアクションの署名に使われます。")) {
                     ForEach(members, id: \.objectID) { m in
-                        MemberRow(member: m)
+                        HStack {
+                            MemberRow(member: m)
+                            Button {
+                                myMemberID = (myMemberID == m.id?.uuidString) ? "" : (m.id?.uuidString ?? "")
+                            } label: {
+                                Image(systemName: myMemberID == m.id?.uuidString
+                                      ? "person.fill.checkmark" : "person")
+                                    .foregroundStyle(myMemberID == m.id?.uuidString
+                                                     ? AppPalette.accent : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .onDelete { idx in
                         idx.map { members[$0] }.forEach { m in

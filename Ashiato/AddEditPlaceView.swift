@@ -32,6 +32,13 @@ struct AddEditPlaceView: View {
 
     private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
 
+    /// リアクションの署名に使う自分の名前(設定した「自分」のメンバー名)
+    private var myMemberName: String? {
+        guard let idString = UserDefaults.standard.string(forKey: "myMemberID"),
+              let id = UUID(uuidString: idString) else { return members.first?.displayName }
+        return members.first { $0.id == id }?.displayName ?? members.first?.displayName
+    }
+
     /// 既存のコメント(タイムライン: 新しい順)
     private var existingComments: [Attachment] {
         guard let set = place?.attachments as? Set<Attachment> else { return [] }
@@ -108,6 +115,13 @@ struct AddEditPlaceView: View {
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
+                    }
+                }
+
+                if let place {
+                    Section("リアクション") {
+                        ReactionBar(place: place, myName: myMemberName)
+                            .padding(.vertical, 2)
                     }
                 }
 

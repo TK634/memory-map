@@ -83,6 +83,49 @@ enum DemoSeeder {
 
         try? context.save()
         print("[DemoSeeder] サンプルデータ投入完了")
+
+        if ProcessInfo.processInfo.arguments.contains("-verifyReactions") {
+            verifyReactions(context: context, place: tokyo, me: "タカ", other: "ハナ")
+        }
+    }
+
+    /// リアクションの追加・重複トグル・集計を検証(DEBUGのみ)
+    private static func verifyReactions(context: NSManagedObjectContext,
+                                        place: Place?, me: String, other: String) {
+        guard let place else { return }
+        func add(_ emoji: String, by author: String) {
+            let r = Reaction(context: context)
+            r.id = UUID(); r.emoji = emoji; r.createdAt = Date(); r.authorName = author
+            r.place = place
+        }
+        func all() -> [Reaction] { Array((place.reactions as? Set<Reaction>) ?? []) }
+
+        add("❤️", by: me)
+        add("❤️", by: other)
+        add("🎉", by: other)
+        try? context.save()
+        print("[検証] 追加後の総数: \(all().count) (期待: 3)")
+
+        var counts: [String: Int] = [:]
+        for r in all() { counts[r.emoji ?? "", default: 0] += 1 }
+        print("[検証] 集計: \(counts.sorted { $0.key < $1.key }) (期待: ❤️=2, 🎉=1)")
+
+        let mine = all().filter { $0.authorName == me }
+        print("[検証] 自分のリアクション: \(mine.count) (期待: 1)")
+
+        // トグル(取り消し)
+        if let target = all().first(where: { $0.emoji == "❤️" && $0.authorName == me }) {
+            context.delete(target)
+            try? context.save()
+        }
+        print("[検証] 取り消し後の総数: \(all().count) (期待: 2)")
+        let heartLeft = all().filter { $0.emoji == "❤️" }
+        print("[検証] 残った❤️の作者: \(heartLeft.compactMap(\.authorName)) (期待: [ハナ])")
+
+        // 後片付け(検証データを消す)
+        all().forEach(context.delete)
+        try? context.save()
+        print("[検証] 後片付け完了。総数: \(all().count) (期待: 0)")
     }
 }
 #endif

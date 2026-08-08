@@ -338,6 +338,8 @@ struct ContentView: View {
         do {
             shareInfo = try await PersistenceController.shared.getOrCreateShare(for: log)
             showShare = true
+            // 共有する=相手の動きを知りたいタイミングなので、ここで通知許可を求める
+            await NotificationManager.shared.requestAuthorization()
         } catch {
             shareError = """
             iCloudの共有リンクを作成できませんでした。
