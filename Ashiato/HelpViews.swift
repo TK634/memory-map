@@ -166,7 +166,11 @@ struct OnboardingView: View {
 
 struct HelpView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: StoreManager
     var onReplayTutorial: (() -> Void)? = nil
+    #if DEBUG
+    @State private var debugPremium = StoreManager.isDebugPremiumOn
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -195,6 +199,15 @@ struct HelpView: View {
                     helpRow("person.2", "メンバー登録", "人型ボタンから追加。名前と色を設定できます。")
                     helpRow("square.and.arrow.up", "iCloudで共有", "右上の共有ボタンから招待リンクを送信。相手も同じ地図を編集できます。")
                 }
+                #if DEBUG
+                Section(header: Text("開発用"),
+                        footer: Text("配信版には含まれません。写真機能などプレミアムの使い勝手を確認するためのスイッチです。")) {
+                    Toggle(isOn: $debugPremium) {
+                        Label("プレミアムを試す", systemImage: "crown.fill")
+                    }
+                    .onChange(of: debugPremium) { _, on in store.setDebugPremium(on) }
+                }
+                #endif
                 if let onReplayTutorial {
                     Section {
                         Button {

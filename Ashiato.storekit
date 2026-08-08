@@ -1,0 +1,54 @@
+{
+  "identifier" : "ASHIATO-STOREKIT-CONFIG",
+  "nonRenewingSubscriptions" : [],
+  "products" : [],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "ASHIATO-PREMIUM-GROUP",
+      "localizations" : [
+        {
+          "description" : "あしあと プレミアム",
+          "displayName" : "あしあと プレミアム",
+          "locale" : "ja"
+        }
+      ],
+      "name" : "Ashiato Premium",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "300",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "ASHIATO-PREMIUM-MONTHLY",
+          "introductoryOffer" : {
+            "internalID" : "ASHIATO-FREE-TRIAL",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "場所ごとの写真を無制限に。今後の新機能も先行して使えます。",
+              "displayName" : "プレミアム(月額)",
+              "locale" : "ja"
+            }
+          ],
+          "productID" : "ashiato.premium.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Ashiato Premium Monthly",
+          "subscriptionGroupID" : "ASHIATO-PREMIUM-GROUP",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

@@ -67,3 +67,13 @@ iPhoneアプリ「あしあと」をApp Storeでリリースするまでのタ�
 - [x] pbxproj に CODE_SIGN_ENTITLEMENTS を戻す(2026-07-20 完了)
 - [x] Info.plist の AshiatoCloudEnabled を true に戻す(2026-07-20 完了)
 - [x] Team昇格を確認し実機に署名ビルドをインストール(iCloudコンテナ iCloud.com.tk634.Ashiato も自動作成済み)
+
+## プレミアムの試し方(開発中)
+
+1. 手軽に機能だけ試す: アプリの「?」→ 使い方 → **開発用「プレミアムを試す」をON**
+   (DEBUGビルドのみ。配信版には含まれない)
+2. 購入フローごと試す: Xcode → Product → Scheme → Edit Scheme → Run → Options →
+   **StoreKit Configuration に `Ashiato.storekit` を選択** → ⌘R
+   → ペイウォールの「購入」で実際のシート(無料トライアル1週間・月額300円)が出る。
+     購入・解約・復元をApp Store Connectなしで検証できる
+3. 本番前の最終確認: App Store Connect の Sandbox テスターで実購入フローを確認

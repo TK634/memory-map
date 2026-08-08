@@ -18,10 +18,26 @@ final class StoreManager: ObservableObject {
 
     private var updatesTask: Task<Void, Never>?
 
+    #if DEBUG
+    /// 開発ビルド限定のプレミアム解放スイッチ(使い勝手の確認用)
+    static var debugPremiumKey: String { "debugPremiumEnabled" }
+    static var isDebugPremiumOn: Bool {
+        get { UserDefaults.standard.bool(forKey: debugPremiumKey) }
+        set { UserDefaults.standard.set(newValue, forKey: debugPremiumKey) }
+    }
+    /// スイッチを切り替えて即座に反映する
+    func setDebugPremium(_ on: Bool) {
+        Self.isDebugPremiumOn = on
+        isPremium = on
+    }
+    #endif
+
     init() {
         #if DEBUG
-        // 検証用: 起動引数 -premium でプレミアム扱いにする
-        if ProcessInfo.processInfo.arguments.contains("-premium") { isPremium = true }
+        // 検証用: 起動引数 -premium、または設定スイッチでプレミアム扱いにする
+        if ProcessInfo.processInfo.arguments.contains("-premium") || Self.isDebugPremiumOn {
+            isPremium = true
+        }
         #endif
         // アプリ生存中ずっとトランザクション更新を監視(購入・返金・他デバイスでの購入を反映)
         updatesTask = Task { [weak self] in
@@ -117,6 +133,9 @@ final class StoreManager: ObservableObject {
                 active = true
             }
         }
+        #if DEBUG
+        if Self.isDebugPremiumOn { isPremium = true; return }
+        #endif
         isPremium = active
     }
 
