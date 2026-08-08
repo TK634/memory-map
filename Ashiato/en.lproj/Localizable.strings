@@ -1,0 +1,95 @@
+/* あしあと — English localization */
+
+/* 共通 */
+"あしあと" = "Ashiato";
+"キャンセル" = "Cancel";
+"保存" = "Save";
+"閉じる" = "Close";
+"完了" = "Done";
+"追加" = "Add";
+"すべて" = "All";
+"国内" = "Domestic";
+"海外" = "Abroad";
+"未設定" = "Not set";
+"やった!" = "Nice!";
+
+/* 下部バー */
+"一覧" = "List";
+"ランキング" = "Ranking";
+"登録" = "Add";
+"メンバー" = "Members";
+"実績" = "Awards";
+"共有" = "Share";
+
+/* 登録・検索 */
+"行った場所を登録" = "Add a place";
+"行った場所を検索" = "Search a place you visited";
+"行った場所の名前で検索してください" = "Search by the name of the place";
+"検索してさがす" = "Search";
+"いまここを記録" = "Record where I am";
+"現在地の近くのお店や公園から選べます" = "Pick from cafés and parks near you";
+"近くの場所" = "Nearby";
+"位置情報の利用がオフです。設定 → あしあと → 位置情報 から許可すると「いまここ」が使えます。" = "Location access is off. Allow it in Settings → Ashiato → Location to use “Record where I am”.";
+
+/* 記録画面 */
+"訪問地を追加" = "New place";
+"記録を編集" = "Edit place";
+"場所" = "Place";
+"都市・スポット名" = "City or spot name";
+"区分" = "Region";
+"行った人" = "Who went";
+"メンバー画面から登録してください" = "Add members from the Members screen";
+"いつ" = "When";
+"訪問年" = "Year";
+"詳しい日付を入れる" = "Add exact date";
+"行った日" = "Date";
+"泊まりの旅(期間で記録)" = "Overnight trip (date range)";
+"帰った日" = "Return date";
+"コメント" = "Comments";
+"思い出やひとことを" = "Add a memory or note";
+"写真" = "Photos";
+"写真を追加" = "Add photos";
+"この場所の思い出を残そう" = "Keep the memories of this place";
+"写真を残す" = "Keep photos";
+"プレミアムで思い出の写真を無制限に" = "Unlimited photos with Premium";
+"この記録を削除" = "Delete this place";
+"スタンプを押して思い出に反応しよう" = "React to this memory with a stamp";
+"スタンプを選ぶ" = "Choose a stamp";
+"きもち" = "Feelings";
+"たべる" = "Food";
+"たび" = "Travel";
+"しぜん" = "Nature";
+"イベント" = "Events";
+
+/* 実績 */
+"制県レベル" = "Prefecture Level";
+"世界のあしあと" = "Footprints Worldwide";
+"バッジ" = "Badges";
+"次のあしあと" = "Next goal";
+"まだあしあとのない場所" = "Places you haven't been";
+"次のおでかけの行き先にどうぞ。" = "Ideas for your next outing.";
+"海外のあしあとを記録すると、ここに国が増えていきます。" = "Countries appear here as you record trips abroad.";
+"バッジ獲得!" = "Badge unlocked!";
+
+/* チュートリアル・使い方 */
+"あしあとへようこそ" = "Welcome to Ashiato";
+"検索して、えらぶだけ" = "Just search and pick";
+"ピンの色でひと目でわかる" = "Colors tell you who went";
+"ふたりで共有" = "Share with your partner";
+"ひとりより、ふたりで" = "Better together";
+"パートナーを招待する" = "Invite your partner";
+"あとで(ひとりではじめる)" = "Later (start solo)";
+"次へ" = "Next";
+"スキップ" = "Skip";
+"使い方" = "How to use";
+"記録する" = "Recording";
+"ピンの色" = "Pin colors";
+"見る・しぼり込む" = "View & filter";
+"チュートリアルをもう一度見る" = "Watch the tutorial again";
+
+/* 共有・エラー */
+"共有できませんでした" = "Couldn't share";
+"パートナーを招待" = "Invite your partner";
+
+/* 思い出 */
+"1年前の今日" = "One year ago today";

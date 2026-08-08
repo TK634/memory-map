@@ -266,7 +266,7 @@ struct ContentView: View {
         .padding(.bottom, 6)
     }
 
-    private func barButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
+    private func barButton(_ icon: String, _ label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
@@ -334,7 +334,7 @@ struct ContentView: View {
                 chip("すべて", active: filter.who == .all) { filter.who = .all; filter.whoOnly = false }
                 ForEach(members, id: \.objectID) { m in
                     if let id = m.id {
-                        chip(m.displayName, dot: m.color, active: filter.who == .member(id)) {
+                        chip(raw: m.displayName, dot: m.color, active: filter.who == .member(id)) {
                             filter.who = .member(id)
                         }
                     }
@@ -351,7 +351,7 @@ struct ContentView: View {
                 }
                 Divider().frame(height: 20)
                 ForEach(RegionFilter.allCases) { r in
-                    chip(r.label, active: filter.region == r) { filter.region = r }
+                    chip(raw: r.label, active: filter.region == r) { filter.region = r }
                 }
                 Divider().frame(height: 20)
                 Menu {
@@ -373,7 +373,13 @@ struct ContentView: View {
         }
     }
 
-    private func chip(_ label: String, dot: Color? = nil, active: Bool, action: @escaping () -> Void) -> some View {
+    /// メンバー名など翻訳対象外の文字列用
+    private func chip(raw label: String, dot: Color? = nil, active: Bool,
+                      action: @escaping () -> Void) -> some View {
+        chip(LocalizedStringKey(label), dot: dot, active: active, action: action)
+    }
+
+    private func chip(_ label: LocalizedStringKey, dot: Color? = nil, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
                 if let dot { Circle().fill(dot).frame(width: 8, height: 8) }

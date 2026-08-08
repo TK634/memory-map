@@ -86,10 +86,10 @@ extension Attachment {
 }
 
 extension Date {
-    /// 「2026年7月19日」形式の日本語表記
+    /// 端末の言語設定に沿った日付表記(日本語なら「2026年7月19日」)
     var jaDateText: String {
         formatted(Date.FormatStyle(date: .long, time: .omitted,
-                                   locale: Locale(identifier: "ja_JP")))
+                                   locale: AppRegion.preferredLocale))
     }
 }
 
@@ -110,7 +110,13 @@ extension Place {
 enum RegionFilter: String, CaseIterable, Identifiable {
     case all, jp, ov
     var id: String { rawValue }
-    var label: String { self == .all ? "すべて" : (self == .jp ? "国内" : "海外") }
+    var label: String {
+        switch self {
+        case .all: return String(localized: "すべて")
+        case .jp: return AppRegion.homeLabel
+        case .ov: return AppRegion.abroadLabel
+        }
+    }
 }
 
 enum WhoFilter: Hashable {

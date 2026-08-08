@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import CoreLocation
 
 /// 「登録」ボタンから開く検索シート。
 /// 行った場所を検索 → 候補を選ぶと記録画面へ進む。
@@ -11,6 +12,7 @@ struct AddPlaceSearchView: View {
     @State private var text = ""
     @State private var results: [MKMapItem] = []
     @State private var isSearching = false
+    @State private var searchTask: Task<Void, Never>?
     @State private var nearby: [MKMapItem] = []
     @State private var isLoadingNearby = false
     @State private var locationDenied = false
@@ -28,6 +30,17 @@ struct AddPlaceSearchView: View {
                         .focused($focused)
                         .submitLabel(.search)
                         .onSubmit(runSearch)
+                        .onChange(of: text) { _, newValue in
+                            // 入力が止まったら自動で検索(ボタンを押す手間をなくす)
+                            searchTask?.cancel()
+                            let q = newValue.trimmingCharacters(in: .whitespaces)
+                            guard q.count >= 2 else { results = []; return }
+                            searchTask = Task {
+                                try? await Task.sleep(for: .milliseconds(350))
+                                guard !Task.isCancelled else { return }
+                                runSearch()
+                            }
+                        }
                     if !text.isEmpty {
                         Button { text = ""; results = [] } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
@@ -166,8 +179,19 @@ struct AddPlaceSearchView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
             }
-            .onAppear { focused = true }
+            .onAppear {
+                focused = true
+                // 開いた直後に近くの候補を先読み(許可済みなら即座に出る)
+                Task { await preloadNearbyIfAuthorized() }
+            }
         }
+    }
+
+    /// 位置情報が既に許可済みなら、開いた瞬間に近くの候補を出しておく
+    private func preloadNearbyIfAuthorized() async {
+        guard CLLocationManager().authorizationStatus == .authorizedWhenInUse
+                || CLLocationManager().authorizationStatus == .authorizedAlways else { return }
+        await loadNearby()
     }
 
     /// 現在地の周辺スポットを読み込む

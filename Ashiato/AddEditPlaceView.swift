@@ -30,6 +30,14 @@ struct AddEditPlaceView: View {
     @State private var newComment = ""
     @State private var showPaywall = false
     @State private var viewerIndex: Int?
+    @State private var showDiscardConfirm = false
+
+    /// 保存されていない入力があるか(誤って閉じて消えるのを防ぐ判定)
+    private var hasUnsavedInput: Bool {
+        !pendingImages.isEmpty
+            || !pendingComments.isEmpty
+            || !newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
 
@@ -60,8 +68,8 @@ struct AddEditPlaceView: View {
                 Section("場所") {
                     TextField("都市・スポット名", text: $name)
                     Picker("区分", selection: $isJapan) {
-                        Text("国内").tag(true)
-                        Text("海外").tag(false)
+                        Text(AppRegion.homeLabel).tag(true)
+                        Text(AppRegion.abroadLabel).tag(false)
                     }
                     .pickerStyle(.segmented)
                 }
@@ -143,15 +151,26 @@ struct AddEditPlaceView: View {
             .navigationTitle(place == nil ? "訪問地を追加" : "記録を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") {
+                        if hasUnsavedInput { showDiscardConfirm = true } else { dismiss() }
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .interactiveDismissDisabled(hasUnsavedInput)
             .onAppear(perform: load)
             .onChange(of: photoItems) { _, items in Task { await importPickedPhotos(items) } }
             .sheet(isPresented: $showPaywall) { PaywallView() }
+            .confirmationDialog("入力した内容を破棄しますか?", isPresented: $showDiscardConfirm,
+                                titleVisibility: .visible) {
+                Button("保存する") { save() }
+                Button("破棄する", role: .destructive) { dismiss() }
+                Button("編集を続ける", role: .cancel) {}
+            }
             .fullScreenCover(item: Binding(
                 get: { viewerIndex.map { ViewerTarget(index: $0) } },
                 set: { viewerIndex = $0?.index }
@@ -373,6 +392,8 @@ struct AddEditPlaceView: View {
             hasEndDate = p.visitEndDate != nil
             selectedIDs = Set(p.visitorIDList)
         } else {
+            // 年は「今年」を初期値に(未設定のまま保存されるのを防ぐ)
+            year = currentYear
             // 「行った人」は前回の選択を初期値にする(存在するメンバーのみ)
             let last = UserDefaults.standard.stringArray(forKey: "lastVisitorIDs") ?? []
             let validIDs = Set(members.compactMap(\.id))
@@ -386,10 +407,10 @@ struct AddEditPlaceView: View {
             if !initialName.isEmpty { name = initialName }
             // 逆ジオコーディングで名前(未設定時)と国内/海外を推定
             let loc = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-            CLGeocoder().reverseGeocodeLocation(loc, preferredLocale: Locale(identifier: "ja_JP")) { marks, _ in
+            CLGeocoder().reverseGeocodeLocation(loc, preferredLocale: AppRegion.preferredLocale) { marks, _ in
                 guard let m = marks?.first else { return }
                 if name.isEmpty { name = m.locality ?? m.administrativeArea ?? m.name ?? "" }
-                isJapan = (m.isoCountryCode == "JP")
+                isJapan = (m.isoCountryCode == AppRegion.homeISOCode)
             }
         }
     }
