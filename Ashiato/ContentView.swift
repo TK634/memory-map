@@ -39,6 +39,12 @@ struct ContentView: View {
     @State private var replayTutorial = false
     @State private var showAchievements = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @AppStorage("memoryCardDismissedDate") private var memoryCardDismissedDate = ""
+
+    /// 「1年前の今日」の思い出
+    private var todaysMemories: [Place] {
+        MemoryLane.todaysMemories(from: allPlaces.map { $0 })
+    }
 
     // アニメ調フラット地図の塗り分けデータ(起動後に非同期読み込み)
     @State private var countryRegions: [GeoRegion] = []
@@ -61,9 +67,24 @@ struct ContentView: View {
             .padding(.horizontal, 12)
             .padding(.top, 4)
         }
-        .overlay(alignment: .bottom) { bottomBar }
+        .overlay(alignment: .bottom) {
+            VStack(spacing: 8) {
+                MemoryCardView(memories: todaysMemories,
+                               onTap: { p in
+                                   camera = .region(MKCoordinateRegion(
+                                       center: .init(latitude: p.latitude, longitude: p.longitude),
+                                       latitudeDelta: 1.2, longitudeDelta: 1.2))
+                                   editingPlace = p
+                               },
+                               dismissedDate: $memoryCardDismissedDate)
+                    .padding(.horizontal, 14)
+                bottomBar
+            }
+        }
         .onAppear {
             if !hasSeenOnboarding { showOnboarding = true }
+            // 今日の思い出があれば翌朝9時に通知(旅行しない日も開く理由をつくる)
+            MemoryLane.scheduleDailyReminder(places: allPlaces.map { $0 })
             #if DEBUG
             DemoSeeder.seedIfRequested(context: context, log: log)
             if ProcessInfo.processInfo.arguments.contains("-openFirstPlace") {

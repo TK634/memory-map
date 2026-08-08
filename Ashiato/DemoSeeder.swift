@@ -81,6 +81,23 @@ enum DemoSeeder {
             }
         }
 
+        // 「1年前の今日」カードの確認用: 1年前・2年前の同月日の記録を追加
+        if ProcessInfo.processInfo.arguments.contains("-seedMemories") {
+            let cal = Calendar.current
+            for (yearsAgo, place) in [(1, "鎌倉"), (2, "箱根")] {
+                let d = cal.date(byAdding: .year, value: -yearsAgo, to: Date())!
+                let p = Place(context: context)
+                p.id = UUID(); p.createdAt = Date(); p.log = log
+                p.name = place
+                p.latitude = place == "鎌倉" ? 35.319 : 35.232
+                p.longitude = place == "鎌倉" ? 139.546 : 139.106
+                p.isJapan = true
+                p.year = Int16(cal.component(.year, from: d))
+                p.visitDate = d
+                p.visitorIDList = both
+            }
+        }
+
         // 見た目確認用のリアクション(スクショ・デザイン検証)
         if ProcessInfo.processInfo.arguments.contains("-seedReactions") {
             for (emoji, who) in [("❤️", "タカ"), ("❤️", "ハナ"), ("🎉", "ハナ"), ("📸", "タカ")] {

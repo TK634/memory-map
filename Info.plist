@@ -16,5 +16,8 @@
 	</array>
 	<key>CFBundleAllowMixedLocalizations</key>
 	<true/>
+	<!-- 「いまここを記録」で近くのお店・公園を探すためだけに使用。追跡はしない -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>「いまここを記録」で、近くのお店や公園をすぐ選べるようにするために使います。現在地を保存したり送信したりはしません。</string>
 </dict>
 </plist>
