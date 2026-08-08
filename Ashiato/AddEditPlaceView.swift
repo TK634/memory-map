@@ -31,6 +31,9 @@ struct AddEditPlaceView: View {
     @State private var showPaywall = false
     @State private var viewerIndex: Int?
     @State private var showDiscardConfirm = false
+    @State private var importingCount = 0   // 取り込み中の総枚数
+    @State private var importedCount = 0    // 取り込み済み枚数
+    @State private var isLoaded = false     // load完了後だけ自動保存する
 
     /// 保存されていない入力があるか(誤って閉じて消えるのを防ぐ判定)
     private var hasUnsavedInput: Bool {
@@ -152,17 +155,25 @@ struct AddEditPlaceView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
-                        if hasUnsavedInput { showDiscardConfirm = true } else { dismiss() }
+                    Button(place == nil ? "キャンセル" : "閉じる") {
+                        if place != nil {
+                            commitPendingAttachments(); autosave(); dismiss()
+                        } else if hasUnsavedInput {
+                            showDiscardConfirm = true
+                        } else {
+                            dismiss()
+                        }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
+                    Button(place == nil ? "保存" : "完了") { save() }
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .interactiveDismissDisabled(hasUnsavedInput)
             .onAppear(perform: load)
+            // 既存の記録は入力が変わるたび自動保存(保存ボタンを押し忘れても消えない)
+            .onChange(of: formSignature) { _, _ in autosave() }
             .onChange(of: photoItems) { _, items in Task { await importPickedPhotos(items) } }
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .confirmationDialog("入力した内容を破棄しますか?", isPresented: $showDiscardConfirm,
@@ -176,7 +187,7 @@ struct AddEditPlaceView: View {
                 set: { viewerIndex = $0?.index }
             )) { target in
                 PhotoViewer(images: allPhotoImages,
-                            captions: allPhotoImages.map { _ in nil },
+                            captions: (0..<allPhotoImages.count).map { photoAuthor(at: $0) },
                             index: min(target.index, max(0, allPhotoImages.count - 1))) { i in
                     deletePhoto(at: i)
                 }
@@ -187,6 +198,26 @@ struct AddEditPlaceView: View {
     private struct ViewerTarget: Identifiable {
         let index: Int
         var id: Int { index }
+    }
+
+    /// 自動保存の判定に使う入力の指紋(まとめて監視して型チェック負荷を下げる)
+    private var formSignature: String {
+        let ids = selectedIDs.map(\.uuidString).sorted().joined(separator: ",")
+        let start = visitDate?.timeIntervalSince1970 ?? -1
+        let end = visitEndDate?.timeIntervalSince1970 ?? -1
+        return "\(name)|\(isJapan)|\(year)|\(hasDate)|\(hasEndDate)|\(start)|\(end)|\(ids)"
+    }
+
+    /// 既存の記録に対する自動保存(新規追加時は「保存」を押すまで作らない)
+    private func autosave() {
+        guard let p = place, isLoaded else { return }
+        p.name = name.trimmingCharacters(in: .whitespaces)
+        p.isJapan = isJapan
+        p.year = Int16(year)
+        p.visitDate = hasDate ? visitDate : nil
+        p.visitEndDate = (hasDate && hasEndDate) ? visitEndDate : nil
+        p.visitorIDList = Array(selectedIDs)
+        try? context.save()
     }
 
     /// ビューアからの削除(追加予定分と保存済み分を通し番号で扱う)
@@ -221,9 +252,16 @@ struct AddEditPlaceView: View {
             ForEach(existingComments, id: \.objectID) { att in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(att.commentText)
-                    if let d = att.createdAt {
-                        Text(d.jaDateText)
-                            .font(.caption2).foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        if let who = att.authorName, !who.isEmpty {
+                            Text(who)
+                                .font(.caption2.bold())
+                                .foregroundStyle(AppPalette.accent)
+                        }
+                        if let d = att.createdAt {
+                            Text(d.jaDateText)
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
@@ -239,6 +277,8 @@ struct AddEditPlaceView: View {
                     guard !t.isEmpty else { return }
                     pendingComments.append(t)
                     newComment = ""
+                    // 既存の記録なら即反映(保存ボタン不要)
+                    if place != nil { commitPendingAttachments() }
                 }
                 .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -262,7 +302,18 @@ struct AddEditPlaceView: View {
                         }
                     }
 
-                    if allPhotoImages.isEmpty {
+                    if importingCount > 0 {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("写真を読み込み中… \(importedCount)/\(importingCount)")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(Color(hex: "FFF6EA"), in: RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    if allPhotoImages.isEmpty && importingCount == 0 {
                         PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
                             VStack(spacing: 8) {
                                 Image(systemName: "photo.badge.plus")
@@ -349,6 +400,20 @@ struct AddEditPlaceView: View {
             .frame(maxWidth: .infinity)
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(alignment: .topLeading) {
+                // 削除ボタン
+                Button {
+                    deletePhoto(at: index)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(.black.opacity(0.45), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(7)
+            }
             .overlay(alignment: .topTrailing) {
                 // 保存前の写真には印をつける
                 if index < pendingImages.count {
@@ -360,8 +425,31 @@ struct AddEditPlaceView: View {
                         .padding(7)
                 }
             }
+            .overlay(alignment: .bottomLeading) {
+                // 誰が上げた写真かを表示
+                if let who = photoAuthor(at: index) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.fill").font(.system(size: 8, weight: .bold))
+                        Text(who).font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(.black.opacity(0.42), in: Capsule())
+                    .padding(7)
+                }
+            }
             .contentShape(RoundedRectangle(cornerRadius: 14))
             .onTapGesture { viewerIndex = index }
+    }
+
+    /// 通し番号から写真の投稿者名を返す
+    private func photoAuthor(at index: Int) -> String? {
+        if index < pendingImages.count {
+            return myMemberName   // これから保存する分は自分
+        }
+        let i = index - pendingImages.count
+        guard i < existingPhotos.count else { return nil }
+        return existingPhotos[i].authorName
     }
 
     /// 追加予定+保存済みの全写真
@@ -370,18 +458,71 @@ struct AddEditPlaceView: View {
     }
 
     private func importPickedPhotos(_ items: [PhotosPickerItem]) async {
-        for item in items {
-            guard let data = try? await item.loadTransferable(type: Data.self),
-                  let ui = UIImage(data: data),
-                  let jpeg = ui.compressedJPEGData() else { continue }
-            await MainActor.run { pendingImages.append(jpeg) }
+        guard !items.isEmpty else { return }
+        importingCount = items.count
+        defer { importingCount = 0 }
+
+        // 読み込みと圧縮を並列＋バックグラウンドで行う。
+        // (以前は1枚ずつ逐次、しかも圧縮がUIスレッドを塞いでいた)
+        let results: [(Int, Data)] = await withTaskGroup(of: (Int, Data)?.self) { group in
+            for (i, item) in items.enumerated() {
+                group.addTask {
+                    guard let data = try? await item.loadTransferable(type: Data.self) else { return nil }
+                    // 重いデコード・リサイズ・JPEG化はメインスレッドから外す
+                    guard let jpeg = await Self.compress(data) else { return nil }
+                    return (i, jpeg)
+                }
+            }
+            var collected: [(Int, Data)] = []
+            for await r in group {
+                if let r {
+                    collected.append(r)
+                    importedCount = collected.count
+                }
+            }
+            return collected
         }
-        await MainActor.run { photoItems = [] }
+
+        // 選んだ順を保つ
+        pendingImages.append(contentsOf: results.sorted { $0.0 < $1.0 }.map(\.1))
+        importedCount = 0
+        photoItems = []
+        // 既存の記録なら選んだ時点で保存(保存ボタンを押さなくても反映される)
+        if place != nil { commitPendingAttachments() }
+    }
+
+    /// 追加待ちの写真・コメントをその場で保存する(既存の記録のみ)
+    private func commitPendingAttachments() {
+        guard let p = place, !pendingImages.isEmpty || !pendingComments.isEmpty else { return }
+        let now = Date()
+        for text in pendingComments {
+            let att = Attachment(context: context)
+            att.id = UUID(); att.createdAt = now
+            att.comment = text; att.authorName = myMemberName; att.place = p
+        }
+        if store.isPremium {
+            for data in pendingImages {
+                let att = Attachment(context: context)
+                att.id = UUID(); att.createdAt = now
+                att.imageData = data; att.authorName = myMemberName; att.place = p
+            }
+        }
+        pendingComments.removeAll()
+        pendingImages.removeAll()
+        try? context.save()
+    }
+
+    /// バックグラウンドで画像を圧縮する
+    private static func compress(_ data: Data) async -> Data? {
+        await Task.detached(priority: .userInitiated) {
+            UIImage(data: data)?.compressedJPEGData()
+        }.value
     }
 
     // MARK: - 読み込み / 保存
 
     private func load() {
+        defer { isLoaded = true }
         if let p = place {
             name = p.name ?? ""
             isJapan = p.isJapan
@@ -442,6 +583,7 @@ struct AddEditPlaceView: View {
             att.id = UUID()
             att.createdAt = now
             att.comment = text
+            att.authorName = myMemberName
             att.place = p
         }
         // 入力欄に残っている未追加のコメントも保存
@@ -451,6 +593,7 @@ struct AddEditPlaceView: View {
             att.id = UUID()
             att.createdAt = now
             att.comment = leftover
+            att.authorName = myMemberName
             att.place = p
         }
         // 写真(プレミアムのみ)
@@ -460,6 +603,7 @@ struct AddEditPlaceView: View {
                 att.id = UUID()
                 att.createdAt = now
                 att.imageData = data
+                att.authorName = myMemberName
                 att.place = p
             }
         }

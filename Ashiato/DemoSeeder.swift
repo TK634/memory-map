@@ -77,6 +77,7 @@ enum DemoSeeder {
                 let a = Attachment(context: context)
                 a.id = UUID(); a.createdAt = Date().addingTimeInterval(Double(100 + i))
                 a.imageData = jpeg
+                a.authorName = i % 2 == 0 ? "タカ" : "ハナ"
                 a.place = naha
             }
         }
