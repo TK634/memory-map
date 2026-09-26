@@ -89,7 +89,7 @@ struct AddEditPlaceView: View {
                         if let place {
                             VStack(alignment: .leading, spacing: 12) {
                                 CardTitle(emoji: "🎉", title: "リアクション")
-                                ReactionBar(place: place, myName: myMemberName)
+                                ReactionBar(place: place, myName: myMemberName, members: members)
                             }
                             .card()
                         }
@@ -201,11 +201,7 @@ struct AddEditPlaceView: View {
                              placeholder: String(localized: "場所の名前"),
                              font: .rounded(26, .black))
                     .frame(height: 34)
-                HStack(spacing: 8) {
-                    regionChip(emoji: AppRegion.isJapanBased ? "🗾" : "🏠",
-                               label: AppRegion.homeLabel, selected: isJapan) { isJapan = true }
-                    regionChip(emoji: "✈️", label: AppRegion.abroadLabel, selected: !isJapan) { isJapan = false }
-                }
+                regionBadge
             }
             .padding(18)
         }
@@ -214,18 +210,31 @@ struct AddEditPlaceView: View {
         .shadow(color: Color(hex: "C98A4B").opacity(0.12), radius: 14, y: 5)
     }
 
-    private func regionChip(emoji: String, label: String, selected: Bool,
-                            action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text("\(emoji) \(label)")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(selected ? .white : AppPalette.chrome.opacity(0.7))
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(selected ? AnyShapeStyle(AppStyle.accentGradient)
-                                     : AnyShapeStyle(Color.gray.opacity(0.10)),
-                            in: Capsule())
+    /// 国内/海外は住所から自動で判定済み。間違っていたときだけメニューで直せる
+    private var regionBadge: some View {
+        Menu {
+            Button { isJapan = true } label: {
+                Label(AppRegion.homeLabel, systemImage: isJapan ? "checkmark" : "")
+            }
+            Button { isJapan = false } label: {
+                Label(AppRegion.abroadLabel, systemImage: isJapan ? "" : "checkmark")
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(isJapan ? (AppRegion.isJapanBased ? "🗾" : "🏠") : "✈️")
+                Text(isJapan ? AppRegion.homeLabel : AppRegion.abroadLabel)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppPalette.chrome)
+                Text("自動判定")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Color.gray.opacity(0.08), in: Capsule())
         }
-        .buttonStyle(PressableStyle())
     }
 
     // MARK: - だれと

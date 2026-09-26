@@ -37,7 +37,7 @@ extension Color {
 }
 
 enum AppPalette {
-    static let memberColors = ["D64550", "3A7CA5", "5B9A6B", "B07AA1", "E8963E", "7A6ADB", "C9803A", "3FA3A3"]
+    static let memberColors = ["D64550", "3A7CA5", "5B9A6B", "B07AA1", "E8963E", "7A6ADB", "C9803A", "3FA3A3", "E86A9A", "2E8BC0", "A8B83A", "8C6D5A"]
     static let together = Color(hex: "2FA98C")
     static let partial  = Color(hex: "8A7CB0")
     static let none     = Color(hex: "9AA7AB")

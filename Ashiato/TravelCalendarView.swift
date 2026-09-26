@@ -270,13 +270,19 @@ struct TravelCalendarView: View {
                         .foregroundStyle(hasRecord ? AppPalette.chrome : Color.primary.opacity(0.6))
                 }
                 .frame(width: 32, height: 32)
-                // 行った人の色の点(4人を超えたら最初の4人)
+                // 行った人の色の点(5人以上は3つ+残りの人数)
                 HStack(spacing: 2) {
-                    ForEach(Array(dotColors.prefix(4).enumerated()), id: \.offset) { _, c in
+                    let many = dotColors.count > 4
+                    ForEach(Array(dotColors.prefix(many ? 3 : 4).enumerated()), id: \.offset) { _, c in
                         Circle().fill(c).frame(width: 6, height: 6)
                     }
+                    if many {
+                        Text("+\(dotColors.count - 3)")
+                            .font(.system(size: 8, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .frame(height: 6)
+                .frame(height: 8)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 44)

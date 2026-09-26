@@ -7,6 +7,8 @@ struct ReactionBar: View {
     let place: Place
     /// 自分の名前(メンバー名。未設定なら nil)
     let myName: String?
+    /// 押した人のアイコンの色に使う
+    var members: [Member] = []
 
     /// よく使う6つ(常に表示)
     static let choices = ["❤️", "👍", "😊", "🎉", "🍜", "📸"]
@@ -44,23 +46,25 @@ struct ReactionBar: View {
             .sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
     }
 
-    /// 絵文字ごとの件数(付与順を保つ)
-    private var summary: [(emoji: String, count: Int, mine: Bool)] {
+    /// 絵文字ごとの集計(付与順)。押した人の名前も持つ
+    private var summary: [(emoji: String, count: Int, mine: Bool, authors: [String?])] {
         var order: [String] = []
-        var dict: [String: (count: Int, mine: Bool)] = [:]
+        var dict: [String: [Reaction]] = [:]
         for r in reactions {
             guard let e = r.emoji else { continue }
             if dict[e] == nil { order.append(e) }
-            let cur = dict[e] ?? (0, false)
-            dict[e] = (cur.count + 1, cur.mine || (r.authorName != nil && r.authorName == myName))
+            dict[e, default: []].append(r)
         }
         return order.compactMap { e in
-            dict[e].map { (emoji: e, count: $0.count, mine: $0.mine) }
+            guard let rs = dict[e] else { return nil }
+            let mine = rs.contains { $0.authorName != nil && $0.authorName == myName }
+            return (emoji: e, count: rs.count, mine: mine, authors: rs.map(\.authorName))
         }
     }
 
-    private var reactedNames: [String] {
-        reactions.compactMap(\.authorName).uniqued()
+    private func color(for author: String?) -> Color {
+        guard let author else { return .gray.opacity(0.45) }
+        return members.first { $0.displayName == author }?.color ?? AppPalette.accent
     }
 
     /// 手前に出す6つ: 最近使ったスタンプを優先し、足りない分は既定から補う
@@ -77,30 +81,36 @@ struct ReactionBar: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 選べるスタンプ(よく使う6つ+もっと)
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 14) {
+            // 付いているリアクション(スタンプ+押した人のアイコン+人数)
+            if !summary.isEmpty {
+                FlowRow(spacing: 8) {
+                    ForEach(summary, id: \.emoji) { item in
+                        reactionChip(item)
+                    }
+                }
+            }
+
+            // 押せるスタンプ(よく使う6つ+もっと)
+            HStack(spacing: 4) {
                 ForEach(quickStamps, id: \.self) { emoji in
                     stampButton(emoji)
                 }
                 Button { showAllStamps = true } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 17, weight: .bold))
+                    Image(systemName: "face.smiling")
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(AppPalette.accent)
-                        .frame(maxWidth: 44, maxHeight: 44).aspectRatio(1, contentMode: .fit)
-                        .background(Circle().fill(.white)
-                            .shadow(color: .black.opacity(0.06), radius: 2, y: 1))
+                        .overlay(alignment: .topTrailing) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(AppPalette.accent)
+                                .background(Circle().fill(.white))
+                                .offset(x: 5, y: -4)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(colors: [Color(hex: "FFF6EA"), Color(hex: "FFEBD3")],
-                               startPoint: .topLeading, endPoint: .bottomTrailing),
-                in: RoundedRectangle(cornerRadius: 18)
-            )
             .overlay(alignment: .top) {
                 // 押したスタンプがふわっと浮き上がる
                 if let floatingEmoji {
@@ -112,21 +122,9 @@ struct ReactionBar: View {
                 }
             }
 
-            // 付いているリアクション
-            if !summary.isEmpty {
-                FlowRow(spacing: 8) {
-                    ForEach(summary, id: \.emoji) { item in
-                        countChip(item)
-                    }
-                }
-                if !reactedNames.isEmpty {
-                    Text(reactedNames.joined(separator: "、") + " が反応しました")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                Text("スタンプを押して思い出に反応しよう")
-                    .font(.caption2)
+            if summary.isEmpty {
+                Text("スタンプで思い出に反応しよう")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
             }
         }
@@ -143,53 +141,58 @@ struct ReactionBar: View {
         }
     }
 
-    /// 上段の押せるスタンプ
+    /// 押せるスタンプ。自分が押したものはやわらかいオレンジの丸で囲む
     private func stampButton(_ emoji: String) -> some View {
         let mine = summary.first { $0.emoji == emoji }?.mine ?? false
         return Button {
             toggle(emoji)
         } label: {
             Text(emoji)
-                .font(.system(size: 24))
-                .frame(maxWidth: 44, maxHeight: 44).aspectRatio(1, contentMode: .fit)
+                .font(.system(size: 26))
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .background(
                     Circle()
-                        .fill(.white)
-                        .shadow(color: .black.opacity(mine ? 0.16 : 0.06),
-                                radius: mine ? 5 : 2, y: mine ? 3 : 1)
+                        .fill(AppPalette.accent.opacity(mine ? 0.18 : 0))
+                        .frame(width: 42, height: 42)
                 )
-                .overlay(
-                    Circle().stroke(AppPalette.accent, lineWidth: mine ? 2.5 : 0)
-                )
-                .scaleEffect(poppingEmoji == emoji ? 1.35 : (mine ? 1.06 : 1.0))
+                .scaleEffect(poppingEmoji == emoji ? 1.35 : 1.0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.45), value: poppingEmoji)
-                .animation(.spring(response: 0.35, dampingFraction: 0.6), value: mine)
         }
         .buttonStyle(.plain)
     }
 
-    /// 下段の件数チップ
-    private func countChip(_ item: (emoji: String, count: Int, mine: Bool)) -> some View {
-        Button { toggle(item.emoji) } label: {
-            HStack(spacing: 4) {
-                Text(item.emoji).font(.system(size: 15))
-                Text("\(item.count)")
+    /// 付いたリアクション: スタンプ・押した人の頭文字アイコン(重ねて表示)・人数
+    private func reactionChip(_ item: (emoji: String, count: Int, mine: Bool, authors: [String?])) -> some View {
+        let shown = Array(item.authors.prefix(3))
+        return Button { toggle(item.emoji) } label: {
+            HStack(spacing: 6) {
+                Text(item.emoji).font(.system(size: 17))
+                HStack(spacing: -7) {
+                    ForEach(Array(shown.enumerated()), id: \.offset) { _, author in
+                        Group {
+                            if let author, !author.isEmpty {
+                                MemberAvatar(name: author, color: color(for: author), size: 22)
+                            } else {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 22, height: 22)
+                                    .background(Color.gray.opacity(0.45), in: Circle())
+                            }
+                        }
+                        .overlay(Circle().stroke(.white, lineWidth: 2))
+                    }
+                }
+                Text(item.count > 3 ? "+\(item.count - 3)" : "\(item.count)")
                     .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundStyle(item.mine ? .white : AppPalette.chrome)
+                    .foregroundStyle(item.mine ? AppPalette.accent : AppPalette.chrome.opacity(0.7))
             }
-            .padding(.horizontal, 11).padding(.vertical, 6)
-            .background(
-                Capsule().fill(item.mine
-                               ? AnyShapeStyle(AppPalette.accent)
-                               : AnyShapeStyle(Color.white))
-            )
-            .overlay(
-                Capsule().stroke(item.mine ? Color.clear : AppPalette.accent.opacity(0.35),
-                                 lineWidth: 1.5)
-            )
-            .shadow(color: .black.opacity(0.07), radius: 2, y: 1)
+            .padding(.leading, 10).padding(.trailing, 12).padding(.vertical, 6)
+            .background(item.mine ? AppPalette.accent.opacity(0.12) : Color.gray.opacity(0.07),
+                        in: Capsule())
+            .overlay(Capsule().stroke(item.mine ? AppPalette.accent.opacity(0.6) : .clear, lineWidth: 1.5))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
         .transition(.scale.combined(with: .opacity))
     }
 
