@@ -68,12 +68,32 @@ enum DemoSeeder {
             a.comment = "たのしかった思い出 その\(i)"
             a.place = tokyo
         }
+        /// 見た目確認用の写真(グラデーション+絵文字)
+        func samplePhoto(_ emoji: String, _ c1: UIColor, _ c2: UIColor) -> Data? {
+            let size = CGSize(width: 600, height: 600)
+            let img = UIGraphicsImageRenderer(size: size).image { ctx in
+                let colors = [c1.cgColor, c2.cgColor] as CFArray
+                let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: nil)!
+                ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: 600, y: 600), options: [])
+                let text = emoji as NSString
+                text.draw(at: CGPoint(x: 170, y: 150),
+                          withAttributes: [.font: UIFont.systemFont(ofSize: 260)])
+            }
+            return img.jpegData(compressionQuality: 0.8)
+        }
+
         // 写真10枚(→「おもいでカメラ」)。2x2の小さなJPEG
         let img = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { ctx in
             UIColor.orange.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
         }
-        if let jpeg = img.jpegData(compressionQuality: 0.7) {
-            for i in 1...10 {
+        let okinawa: [(String, UIColor, UIColor)] = [
+            ("🏝️", .systemTeal, .systemBlue), ("🐠", .cyan, .systemIndigo), ("🌺", .systemPink, .systemOrange),
+            ("🍍", .systemYellow, .systemGreen), ("🌅", .systemOrange, .systemPurple),
+        ]
+        _ = img
+        for i in 1...10 {
+            let spec = okinawa[(i - 1) % okinawa.count]
+            if let jpeg = samplePhoto(spec.0, spec.1, spec.2) {
                 let a = Attachment(context: context)
                 a.id = UUID(); a.createdAt = Date().addingTimeInterval(Double(100 + i))
                 a.imageData = jpeg
@@ -122,6 +142,16 @@ enum DemoSeeder {
                 p.year = Int16(cal.component(.year, from: now))
                 p.visitDate = day(d); p.visitEndDate = e.map(day)
                 p.visitorIDList = who
+                let photo: (String, UIColor, UIColor)? = [
+                    "代官山のカフェ": ("☕️", UIColor.brown, UIColor.systemOrange),
+                    "箱根": ("♨️", UIColor.systemRed, UIColor.systemPink),
+                    "江の島": ("🌊", UIColor.systemBlue, UIColor.systemTeal),
+                ][name]
+                if let photo, let jpeg = samplePhoto(photo.0, photo.1, photo.2) {
+                    let a = Attachment(context: context)
+                    a.id = UUID(); a.createdAt = Date(); a.imageData = jpeg
+                    a.authorName = "タカ"; a.place = p
+                }
             }
         }
 

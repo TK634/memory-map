@@ -180,7 +180,7 @@ struct HelpView: View {
                     helpRow("calendar", "日付・期間", "行った日に加えて「泊まりの旅」は帰った日まで期間で記録できます。")
                     helpRow("hand.tap", "ピンをタップ", "登録済みのピンをタップすると編集・コメント追記ができます。")
                     helpRow("text.bubble", "コメント", "場所ごとに何件でも。行くたびに思い出を追記できます。")
-                    helpRow("photo.on.rectangle.angled", "写真(プレミアム)", "場所ごとに写真を残せます。記録画面から追加します。")
+                    helpRow("photo.on.rectangle.angled", "写真", "記録画面から写真を追加。カレンダーの日付やマップのピンに写真が出て、右上「…」のアルバムでまとめて見返せます。")
                 }
                 Section("ピンの色") {
                     helpColorRow(AppPalette.memberColors.first.map { Color(hex: $0) } ?? .red,

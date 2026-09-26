@@ -8,6 +8,8 @@ struct TravelCalendarView: View {
     var topInset: CGFloat = 6
     /// 日付を選んで登録を始める
     var onAddOnDate: (Date) -> Void = { _ in }
+    /// アルバムを開く
+    var onOpenAlbum: () -> Void = {}
     var onSelectPlace: (Place) -> Void
 
     @State private var selectedDay: DaySelection?
@@ -73,6 +75,7 @@ struct TravelCalendarView: View {
             LazyVStack(spacing: 18, pinnedViews: []) {
                 summaryCard
                 legend
+                albumCard
                 ForEach(months(from: map), id: \.self) { month in
                     monthSection(month, map: map)
                 }
@@ -139,6 +142,40 @@ struct TravelCalendarView: View {
         }
         .padding(12)
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// アルバムへの入口(新しい写真を4枚だけ見せる)
+    @ViewBuilder
+    private var albumCard: some View {
+        let photos = places.flatMap(\.photoAttachments)
+            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+        if !photos.isEmpty {
+            Button(action: onOpenAlbum) {
+                HStack(spacing: 12) {
+                    HStack(spacing: -10) {
+                        ForEach(Array(photos.prefix(4).enumerated()), id: \.offset) { _, att in
+                            PhotoThumb(attachment: att, pixel: 120)
+                                .frame(width: 40, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(.white, lineWidth: 2))
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("📸 アルバム")
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(AppPalette.chrome)
+                        Text("\(photos.count)枚の思い出")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.secondary)
+                }
+                .padding(12)
+                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(PressableStyle())
+        }
     }
 
     /// 日付未設定の記録
@@ -243,6 +280,8 @@ struct TravelCalendarView: View {
     private func dayCell(_ date: Date, records: [Place]) -> some View {
         let hasRecord = !records.isEmpty
         let isToday = cal.isDateInToday(date)
+        // 写真のある日は丸に写真を出す(カレンダーから写真を見返せるように)
+        let cover = records.lazy.compactMap(\.coverPhoto).first
         let dotColors: [Color] = {
             guard hasRecord else { return [] }
             let v = visitors(of: records)
@@ -257,7 +296,11 @@ struct TravelCalendarView: View {
         } label: {
             VStack(spacing: 3) {
                 ZStack {
-                    if hasRecord {
+                    if let cover {
+                        PhotoThumb(attachment: cover, pixel: 96)
+                            .clipShape(Circle())
+                            .overlay(Circle().fill(.black.opacity(0.28)))
+                    } else if hasRecord {
                         Circle().fill(AppPalette.accent.opacity(0.18))
                     } else if isToday {
                         Circle().fill(Color.gray.opacity(0.10))
@@ -267,7 +310,8 @@ struct TravelCalendarView: View {
                     }
                     Text("\(cal.component(.day, from: date))")
                         .font(.system(size: 14, weight: hasRecord ? .heavy : .medium, design: .rounded))
-                        .foregroundStyle(hasRecord ? AppPalette.chrome : Color.primary.opacity(0.6))
+                        .foregroundStyle(cover != nil ? .white
+                                         : (hasRecord ? AppPalette.chrome : Color.primary.opacity(0.6)))
                 }
                 .frame(width: 32, height: 32)
                 // 行った人の色の点(5人以上は3つ+残りの人数)
@@ -347,12 +391,23 @@ private struct DayDetailSheet: View {
                 ForEach(places, id: \.objectID) { p in
                     Button { onSelect(p) } label: {
                         HStack(spacing: 12) {
-                            PinView(color: p.pinColor(members: members))
+                            if let cover = p.coverPhoto {
+                                PhotoThumb(attachment: cover, pixel: 160)
+                                    .frame(width: 52, height: 52)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            } else {
+                                PinView(color: p.pinColor(members: members))
+                            }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(p.name ?? "")
                                     .font(.subheadline.bold()).foregroundStyle(.primary)
-                                Text(p.whoLabel(members: members))
-                                    .font(.caption).foregroundStyle(.secondary)
+                                HStack(spacing: 6) {
+                                    Text(p.whoLabel(members: members))
+                                    if !p.photoAttachments.isEmpty {
+                                        Label("\(p.photoAttachments.count)", systemImage: "photo")
+                                    }
+                                }
+                                .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             Image(systemName: "chevron.right")

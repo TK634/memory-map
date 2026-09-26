@@ -44,6 +44,7 @@ struct ContentView: View {
     @State private var showOnboarding = false
     @State private var replayTutorial = false
     @State private var showAchievements = false
+    @State private var showAlbum = false
     /// メイン表示(カレンダー / マップ)
     enum MainTab { case calendar, map }
     @State private var tab: MainTab = .calendar
@@ -79,7 +80,8 @@ struct ContentView: View {
                                    topInset: 56,
                                    onAddOnDate: { d in
                                        addSearch = AddSearchRequest(date: d)
-                                   }) { p in
+                                   },
+                                   onOpenAlbum: { showAlbum = true }) { p in
                     editingPlace = p
                 }
                 .ignoresSafeArea(edges: .bottom)
@@ -131,6 +133,10 @@ struct ContentView: View {
                         from: DateComponents(year: 2026, month: 9, day: 12)))
                 }
             }
+            if ProcessInfo.processInfo.arguments.contains("-openAlbum") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showAlbum = true }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-openMap") { tab = .map }
             if ProcessInfo.processInfo.arguments.contains("-demoAddOnDate") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     showOnboarding = false
@@ -204,6 +210,11 @@ struct ContentView: View {
                              place: place, members: members)
         }
         .sheet(isPresented: $showMembers) { MembersView(log: log) }
+        .sheet(isPresented: $showAlbum) {
+            AlbumView(places: allPlaces.map { $0 }, members: members) { p in
+                editingPlace = p
+            }
+        }
         .sheet(isPresented: $showAchievements) {
             AchievementsView(places: allPlaces.map { $0 }, members: members,
                              prefRegions: prefRegions, countryRegions: countryRegions)
@@ -228,12 +239,15 @@ struct ContentView: View {
         .onChange(of: store.isPremium) { _, _ in syncSharedPremium() }
         // 記録が増えたら実績の解放を判定して祝う
         .onChange(of: allPlaces.count) { _, _ in
+            // 県の境界データが届く前は判定しない(県0を基準にすると全県を「新しく制覇」と誤判定する)
+            guard !prefRegions.isEmpty else { return }
             celebration.check(places: allPlaces.map { $0 }, members: members,
                               prefRegions: prefRegions)
         }
         .onChange(of: prefRegions.count) { _, _ in
-            celebration.check(places: allPlaces.map { $0 }, members: members,
-                              prefRegions: prefRegions)
+            // データが届いた時点の状態を基準にする(ここではお祝いしない)
+            celebration.resetBaseline(places: allPlaces.map { $0 }, members: members,
+                                      prefRegions: prefRegions)
         }
         .overlay {
             if let kind = celebration.pending.first {
@@ -274,6 +288,7 @@ struct ContentView: View {
                     .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             }
             Menu {
+                Button { showAlbum = true } label: { Label("アルバム", systemImage: "photo.on.rectangle.angled") }
                 Button { showList = true } label: { Label("一覧", systemImage: "list.bullet") }
                 Button { showRanking = true } label: { Label("ランキング", systemImage: "trophy") }
                 Divider()
@@ -351,8 +366,15 @@ struct ContentView: View {
                 // 4. あしあとピン
                 ForEach(filtered, id: \.objectID) { p in
                     Annotation(p.name ?? "", coordinate: .init(latitude: p.latitude, longitude: p.longitude)) {
-                        PinView(color: p.pinColor(members: members))
-                            .onTapGesture { editingPlace = p }
+                        // 写真のある場所は写真のピンにして、地図からも思い出を見返せるように
+                        Group {
+                            if let cover = p.coverPhoto {
+                                PhotoPin(attachment: cover, ringColor: p.pinColor(members: members))
+                            } else {
+                                PinView(color: p.pinColor(members: members))
+                            }
+                        }
+                        .onTapGesture { editingPlace = p }
                     }
                 }
             }
@@ -460,6 +482,21 @@ struct ContentView: View {
 }
 
 // MARK: - ピン表示
+
+/// 写真つきのピン: 丸い写真に行った人の色の枠
+struct PhotoPin: View {
+    let attachment: Attachment
+    let ringColor: Color
+
+    var body: some View {
+        PhotoThumb(attachment: attachment, pixel: 120)
+            .frame(width: 40, height: 40)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(.white, lineWidth: 3))
+            .overlay(Circle().stroke(ringColor, lineWidth: 1.5).padding(-1.5))
+            .shadow(color: .black.opacity(0.28), radius: 4, y: 2)
+    }
+}
 
 /// 白い丸バッジ+足あとマーク。アプリ名「あしあと」にちなんだピン
 struct PinView: View {

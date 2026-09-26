@@ -45,6 +45,11 @@ final class CelebrationCenter: ObservableObject {
 
     private var last: Snapshot?
 
+    /// お祝いせずに基準だけ取り直す(県・国の境界データが届いたときに使う)
+    func resetBaseline(places: [Place], members: [Member], prefRegions: [GeoRegion]) {
+        last = Snapshot(places: places, members: members, prefRegions: prefRegions)
+    }
+
     private struct Snapshot {
         let prefs: Set<String>
         let badges: Set<String>

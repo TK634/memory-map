@@ -49,11 +49,11 @@ struct AddEditPlaceView: View {
 
     /// 写真を使えるか(自分の課金、または共有相手の課金でも可)
     private var canUsePhotos: Bool {
-        store.isPremium || SharedPremium.isActive(log)
+        PremiumPolicy.photosAreFree || store.isPremium || SharedPremium.isActive(log)
     }
     /// 共有相手の課金のおかげで使えている状態か(表示の出し分け用)
     private var isSharedPremium: Bool {
-        !store.isPremium && SharedPremium.isActive(log)
+        !PremiumPolicy.photosAreFree && !store.isPremium && SharedPremium.isActive(log)
     }
 
     /// リアクションの署名に使う自分の名前(設定した「自分」のメンバー名)
