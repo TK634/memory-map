@@ -17,8 +17,8 @@ struct PaywallView: View {
 
     private let benefits: [Benefit] = [
         .init(icon: "photo.on.rectangle.angled",
-              title: "場所ごとの写真",
-              detail: "訪れた場所に思い出の写真を無制限に残せます。"),
+              title: "写真を無制限に",
+              detail: "無料は1か所3枚まで。プレミアムなら思い出の写真を何枚でも残せます。"),
         .init(icon: "person.2.fill",
               title: "ふたり分で1つの課金",
               detail: "あなたが登録すれば、招待した家族・パートナー(最大6人)も写真を追加できます。"),

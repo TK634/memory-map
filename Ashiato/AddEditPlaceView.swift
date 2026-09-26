@@ -48,12 +48,21 @@ struct AddEditPlaceView: View {
     private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
 
     /// 写真を使えるか(自分の課金、または共有相手の課金でも可)
-    private var canUsePhotos: Bool {
-        PremiumPolicy.photosAreFree || store.isPremium || SharedPremium.isActive(log)
+    /// 写真を無制限に残せるか(自分の課金、または共有相手の課金)
+    private var hasUnlimitedPhotos: Bool {
+        store.isPremium || SharedPremium.isActive(log)
     }
+    /// あと何枚追加できるか(無制限なら nil)。無料は1か所 freePhotosPerPlace 枚まで
+    private var remainingPhotoSlots: Int? {
+        hasUnlimitedPhotos ? nil
+            : max(0, PremiumPolicy.freePhotosPerPlace - allPhotoImages.count)
+    }
+    private var canAddMorePhotos: Bool { remainingPhotoSlots.map { $0 > 0 } ?? true }
+    /// 写真を選ぶ画面で一度に選べる枚数
+    private var pickerLimit: Int { remainingPhotoSlots.map { max(1, $0) } ?? 10 }
     /// 共有相手の課金のおかげで使えている状態か(表示の出し分け用)
     private var isSharedPremium: Bool {
-        !PremiumPolicy.photosAreFree && !store.isPremium && SharedPremium.isActive(log)
+        !store.isPremium && SharedPremium.isActive(log)
     }
 
     /// リアクションの署名に使う自分の名前(設定した「自分」のメンバー名)
@@ -594,93 +603,104 @@ struct AddEditPlaceView: View {
 
     // MARK: - 写真(プレミアム)
 
-    @ViewBuilder
     private var photoCard: some View {
-        if canUsePhotos {
-            VStack(alignment: .leading, spacing: 12) {
-                CardTitle(emoji: "📸", title: "写真", trailing: AnyView(HStack(spacing: 8) {
-                    if isSharedPremium {
-                        Label("共有プレミアム", systemImage: "person.2.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(AppPalette.accent)
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            CardTitle(emoji: "📸", title: "写真", trailing: AnyView(HStack(spacing: 8) {
+                if isSharedPremium {
+                    Label("共有プレミアム", systemImage: "person.2.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(AppPalette.accent)
+                }
+                if hasUnlimitedPhotos {
                     if !allPhotoImages.isEmpty {
                         Text("\(allPhotoImages.count)枚")
                             .font(.caption.bold()).foregroundStyle(.secondary)
                     }
-                }))
+                } else {
+                    // 無料は何枚まで使ったか
+                    Text("\(allPhotoImages.count)/\(PremiumPolicy.freePhotosPerPlace)枚")
+                        .font(.caption.bold())
+                        .foregroundStyle(canAddMorePhotos ? Color.secondary : AppPalette.accent)
+                }
+            }))
 
-                if importingCount > 0 {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("写真を読み込み中… \(importedCount)/\(importingCount)")
-                            .font(.caption).foregroundStyle(.secondary)
+            if importingCount > 0 {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("写真を読み込み中… \(importedCount)/\(importingCount)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .background(Color(hex: "FFF6EA"), in: RoundedRectangle(cornerRadius: 16))
+            }
+
+            if allPhotoImages.isEmpty && importingCount == 0 {
+                PhotosPicker(selection: $photoItems, maxSelectionCount: pickerLimit, matching: .images) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 26))
+                            .foregroundStyle(.white)
+                            .frame(width: 56, height: 56)
+                            .background(AppStyle.accentGradient, in: Circle())
+                        Text("写真を追加")
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(AppPalette.chrome)
+                        Text(hasUnlimitedPhotos
+                             ? String(localized: "この場所の思い出を残そう")
+                             : String(localized: "1か所\(PremiumPolicy.freePhotosPerPlace)枚まで無料"))
+                            .font(.caption2).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(Color(hex: "FFF6EA"), in: RoundedRectangle(cornerRadius: 16))
+                    .padding(.vertical, 26)
+                    .background(Color(hex: "FFF6EA"),
+                                in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(AppPalette.accent.opacity(0.35),
+                                          style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+                    )
                 }
-
-                if allPhotoImages.isEmpty && importingCount == 0 {
-                    PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
-                        VStack(spacing: 8) {
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 26))
-                                .foregroundStyle(.white)
-                                .frame(width: 56, height: 56)
-                                .background(AppStyle.accentGradient, in: Circle())
-                            Text("写真を追加")
-                                .font(.system(size: 15, weight: .heavy, design: .rounded))
-                                .foregroundStyle(AppPalette.chrome)
-                            Text("この場所の思い出を残そう")
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 26)
-                        .background(Color(hex: "FFF6EA"),
-                                    in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .strokeBorder(AppPalette.accent.opacity(0.35),
-                                              style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-                        )
-                    }
-                } else {
-                    photoGrid
-                    PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
-                        Label("写真を追加", systemImage: "plus")
+            } else {
+                photoGrid
+                if canAddMorePhotos {
+                    PhotosPicker(selection: $photoItems, maxSelectionCount: pickerLimit, matching: .images) {
+                        Label(remainingPhotoSlots.map { String(localized: "写真を追加(あと\($0)枚)") }
+                                ?? String(localized: "写真を追加"),
+                              systemImage: "plus")
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundStyle(AppPalette.accent)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 11)
                             .background(AppPalette.accent.opacity(0.1), in: Capsule())
                     }
-                }
-            }
-            .card()
-        } else {
-            Button { showPaywall = true } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
-                        .background(AppStyle.accentGradient,
+                } else {
+                    // 無料の上限に達した: プレミアムの案内
+                    Button { showPaywall = true } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "crown.fill")
+                                .foregroundStyle(.white)
+                                .frame(width: 32, height: 32)
+                                .background(AppStyle.accentGradient, in: Circle())
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("もっと写真を残すならプレミアム")
+                                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(AppPalette.chrome)
+                                Text("写真が何枚でも追加できます")
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.secondary)
+                        }
+                        .padding(12)
+                        .background(AppPalette.accent.opacity(0.08),
                                     in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("📸 写真を残す")
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(AppPalette.chrome)
-                        Text("プレミアムで思い出の写真を無制限に")
-                            .font(.caption).foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
+                    .buttonStyle(PressableStyle())
                 }
-                .card(padding: 14)
             }
-            .buttonStyle(PressableStyle())
         }
+        .card()
     }
 
     /// SNS風の写真グリッド。1枚なら大きく、複数なら2列
@@ -790,8 +810,13 @@ struct AddEditPlaceView: View {
             return collected
         }
 
-        // 選んだ順を保つ
-        pendingImages.append(contentsOf: results.sorted { $0.0 < $1.0 }.map(\.1))
+        // 選んだ順を保つ。無料の上限を超えた分は取り込まずにプレミアムを案内する
+        var picked = results.sorted { $0.0 < $1.0 }.map(\.1)
+        if let slots = remainingPhotoSlots, picked.count > slots {
+            picked = Array(picked.prefix(slots))
+            showPaywall = true
+        }
+        pendingImages.append(contentsOf: picked)
         importedCount = 0
         photoItems = []
         // 既存の記録なら選んだ時点で保存(保存ボタンを押さなくても反映される)
@@ -807,12 +832,10 @@ struct AddEditPlaceView: View {
             att.id = UUID(); att.createdAt = now
             att.comment = text; att.authorName = myMemberName; att.place = p
         }
-        if canUsePhotos {
-            for data in pendingImages {
-                let att = Attachment(context: context)
-                att.id = UUID(); att.createdAt = now
-                att.imageData = data; att.authorName = myMemberName; att.place = p
-            }
+        for data in pendingImages {
+            let att = Attachment(context: context)
+            att.id = UUID(); att.createdAt = now
+            att.imageData = data; att.authorName = myMemberName; att.place = p
         }
         pendingComments.removeAll()
         pendingImages.removeAll()
@@ -909,16 +932,14 @@ struct AddEditPlaceView: View {
             att.authorName = myMemberName
             att.place = p
         }
-        // 写真(プレミアムのみ)
-        if canUsePhotos {
-            for data in pendingImages {
-                let att = Attachment(context: context)
-                att.id = UUID()
-                att.createdAt = now
-                att.imageData = data
-                att.authorName = myMemberName
-                att.place = p
-            }
+        // 写真(無料は1か所3枚まで。取り込み時に上限内に絞ってある)
+        for data in pendingImages {
+            let att = Attachment(context: context)
+            att.id = UUID()
+            att.createdAt = now
+            att.imageData = data
+            att.authorName = myMemberName
+            att.place = p
         }
 
         try? context.save()

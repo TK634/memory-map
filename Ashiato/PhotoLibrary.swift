@@ -6,8 +6,8 @@ import CoreData
 // MARK: - 方針
 
 enum PremiumPolicy {
-    /// いまは写真を全員に開放している。課金限定に戻すときは false にする
-    static let photosAreFree = true
+    /// 無料で残せる写真の枚数(1か所あたり)。プレミアムは無制限
+    static let freePhotosPerPlace = 3
 }
 
 // MARK: - サムネイル
