@@ -123,31 +123,26 @@ struct AchievementsView: View {
 
     /// 「あと◯」の残り表示(ゴールが近いほどやる気が出る)
     private func remainingText(for badge: BadgeDef) -> String? {
+        guard let p = badge.progress?(stats) else { return nil }
+        let remain = p.goal - p.current
+        return remain > 0 ? "あと\(remain)\(p.unit)" : nil
+    }
+
+    /// まだ取れていないバッジのうち、いちばん達成に近いもの
+    private var closestLockedBadge: BadgeDef? {
         let s = stats
-        let targets: [(String, Int, Int, String)] = [
-            ("あしあと10", s.placeCount, 10, "か所"),
-            ("あしあと30", s.placeCount, 30, "か所"),
-            ("あしあと50", s.placeCount, 50, "か所"),
-            ("あしあと100", s.placeCount, 100, "か所"),
-            ("制県スタート", s.prefCount, 3, "県"),
-            ("制県の旅人", s.prefCount, 10, "県"),
-            ("制県マスター", s.prefCount, 25, "県"),
-            ("全県制覇", s.prefCount, 47, "県"),
-            ("世界を歩く", s.countryCount, 5, "か国"),
-            ("世界の旅人", s.countryCount, 10, "か国"),
-            ("みんなの思い出", s.togetherCount, 5, "か所"),
-            ("ことばのあしあと", s.commentCount, 10, "件"),
-            ("おもいでカメラ", s.photoCount, 10, "枚"),
-        ]
-        guard let t = targets.first(where: { $0.0 == badge.id }) else { return nil }
-        let remain = t.2 - t.1
-        return remain > 0 ? "あと\(remain)\(t.3)" : nil
+        let locked = badges.filter { !$0.unlocked }.map(\.def)
+        let withProgress = locked.compactMap { d -> (BadgeDef, Double)? in
+            guard let p = d.progress?(s), p.goal > 0 else { return nil }
+            return (d, Double(p.current) / Double(p.goal))
+        }
+        return withProgress.max { $0.1 < $1.1 }?.0 ?? locked.first
     }
 
     /// 次の目標カード(旅行しない期間もアプリを開く理由をつくる)
     @ViewBuilder
     private var nextGoalCard: some View {
-        let nextBadge = badges.first { !$0.unlocked }?.def
+        let nextBadge = closestLockedBadge
         let unvisited = Self.prefOrder.filter { !visitedPrefs.contains($0) }
         VStack(alignment: .leading, spacing: 12) {
             Label("次のあしあと", systemImage: "sparkles")
@@ -260,35 +255,79 @@ struct AchievementsView: View {
         .background(.white, in: RoundedRectangle(cornerRadius: 18))
     }
 
-    /// バッジ一覧
+    /// バッジ一覧(種類ごと)
     private var badgeGrid: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("バッジ", systemImage: "rosette").font(.headline)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 14) {
-                ForEach(badges, id: \.def.id) { badge in
-                    VStack(spacing: 6) {
-                        ZStack {
-                            Circle()
-                                .fill(badge.unlocked ? AppPalette.accent : Color.gray.opacity(0.15))
-                                .frame(width: 58, height: 58)
-                            Image(systemName: badge.unlocked ? badge.def.icon : "lock.fill")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundStyle(badge.unlocked ? .white : Color.gray.opacity(0.5))
+        let all = badges
+        let got = all.filter(\.unlocked).count
+        return VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("バッジ", systemImage: "rosette").font(.headline)
+                Spacer()
+                Text("\(got)")
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .foregroundStyle(AppPalette.accent)
+                Text("/ \(all.count) 獲得").font(.caption).foregroundStyle(.secondary)
+            }
+            ProgressView(value: Double(got), total: Double(max(all.count, 1)))
+                .tint(AppPalette.accent)
+
+            ForEach(BadgeCategory.allCases, id: \.self) { cat in
+                let items = all.filter { $0.def.category == cat }
+                if !items.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text(cat.rawValue)
+                                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                .foregroundStyle(AppPalette.chrome)
+                            Spacer()
+                            Text("\(items.filter(\.unlocked).count)/\(items.count)")
+                                .font(.caption.bold()).foregroundStyle(.secondary)
                         }
-                        Text(badge.def.id)
-                            .font(.system(size: 11, weight: .bold))
-                            .lineLimit(1).minimumScaleFactor(0.7)
-                        Text(badge.def.condition)
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
+                                  spacing: 14) {
+                            ForEach(items, id: \.def.id) { badge in
+                                badgeCell(badge.def, unlocked: badge.unlocked)
+                            }
+                        }
                     }
                 }
             }
         }
         .padding()
         .background(.white, in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func badgeCell(_ def: BadgeDef, unlocked: Bool) -> some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(unlocked ? AnyShapeStyle(AppStyle.accentGradient)
+                                   : AnyShapeStyle(Color.gray.opacity(0.13)))
+                    .frame(width: 58, height: 58)
+                    .shadow(color: AppPalette.accent.opacity(unlocked ? 0.3 : 0), radius: 5, y: 2)
+                Image(systemName: unlocked ? def.icon : "lock.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(unlocked ? .white : Color.gray.opacity(0.45))
+            }
+            Text(def.id)
+                .font(.system(size: 11, weight: .bold))
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .foregroundStyle(unlocked ? AppPalette.chrome : .secondary)
+            // 取れていないバッジは進み具合、取れたバッジは条件を出す
+            if !unlocked, let p = def.progress?(stats), p.goal > 1 {
+                ProgressView(value: Double(min(p.current, p.goal)), total: Double(p.goal))
+                    .tint(AppPalette.accent.opacity(0.7))
+                    .frame(width: 54)
+                Text("\(min(p.current, p.goal))/\(p.goal)")
+                    .font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+            } else {
+                Text(def.condition)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
+        }
     }
 }
 

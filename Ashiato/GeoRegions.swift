@@ -98,17 +98,35 @@ extension GeoRegion {
         }
     }
 
-    /// 座標リストから訪問済み領域名を求める
+    /// 座標リストから訪問済み領域名を求める。
+    /// 海岸線は簡略化しているため、海沿いの点(江の島など)はどの領域にも入らないことがある。
+    /// その場合は約20km以内でいちばん近い領域に数える。
     static func visitedNames(of regions: [GeoRegion],
                              coords: [CLLocationCoordinate2D]) -> Set<String> {
         var visited = Set<String>()
         for c in coords {
-            if let r = regions.first(where: { !visited.contains($0.id) && $0.contains(c) }) {
+            if let r = regions.first(where: { $0.contains(c) }) {
                 visited.insert(r.id)
-            } else if let r = regions.first(where: { $0.contains(c) }) {
+            } else if let r = nearest(in: regions, to: c, within: 0.2) {
                 visited.insert(r.id)
             }
         }
         return visited
     }
+
+    /// 境界の頂点までの距離がいちばん近い領域(度単位でおおよそ判定)
+    private static func nearest(in regions: [GeoRegion], to c: CLLocationCoordinate2D,
+                                within limit: Double) -> GeoRegion? {
+        var best: (GeoRegion, Double)?
+        for r in regions {
+            for ring in r.polygons {
+                for v in ring {
+                    let d = hypot(v.latitude - c.latitude, v.longitude - c.longitude)
+                    if d < limit && d < (best?.1 ?? .infinity) { best = (r, d) }
+                }
+            }
+        }
+        return best?.0
+    }
 }
+

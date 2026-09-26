@@ -91,6 +91,16 @@ struct ContentView: View {
             .padding(.horizontal, 12)
             .padding(.top, 4)
         }
+        .task {
+            // 県・国の境界データは起動時に読み込む(バックグラウンドで、起動をブロックしない)。
+            // マップタブを開かなくても制県レベル・国の数・バッジが正しく出るように
+            if countryRegions.isEmpty {
+                let countries = await Task.detached { GeoData.load("countries") }.value
+                let prefs = await Task.detached { GeoData.load("prefectures") }.value
+                countryRegions = countries
+                prefRegions = prefs
+            }
+        }
         .overlay(alignment: .bottom) {
             VStack(spacing: 8) {
                 MemoryCardView(memories: todaysMemories,
@@ -348,15 +358,6 @@ struct ContentView: View {
             }
             .mapStyle(.standard(elevation: .flat, emphasis: .muted,
                                 pointsOfInterest: .excludingAll, showsTraffic: false))
-            .task {
-                // GeoJSONの読み込みはバックグラウンドで(起動をブロックしない)
-                if countryRegions.isEmpty {
-                    let countries = await Task.detached { GeoData.load("countries") }.value
-                    let prefs = await Task.detached { GeoData.load("prefectures") }.value
-                    countryRegions = countries
-                    prefRegions = prefs
-                }
-            }
     }
 
     // MARK: - フィルターバー
