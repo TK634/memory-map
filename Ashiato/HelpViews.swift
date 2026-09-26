@@ -190,9 +190,11 @@ struct HelpView: View {
                     helpColorRow(AppPalette.none, "グレー", "誰が行ったか未設定")
                 }
                 Section("見る・しぼり込む") {
-                    helpRow("line.3.horizontal.decrease.circle", "フィルター", "地図上部のチップで「行った人」「国内/海外」「年」をしぼり込み。")
-                    helpRow("trophy", "ランキング", "メンバーごとの訪問数を比較。フィルターと連動します。")
-                    helpRow("list.bullet", "一覧", "記録を新しい順に一覧表示。タップで地図へジャンプ。")
+                    helpRow("calendar", "カレンダー", "行った日が色で塗られます。泊まりの旅は期間中の毎日が塗られ、日付をタップするとその日の記録が開きます。")
+                    helpRow("map.fill", "マップ", "下の「マップ」タブで、行った場所を地図で見られます。")
+                    helpRow("line.3.horizontal.decrease.circle", "フィルター", "マップ上部のチップで「行った人」「国内/海外」「年」をしぼり込み。")
+                    helpRow("trophy", "ランキング", "右上の「…」から。メンバーごとの訪問数を比較できます。")
+                    helpRow("list.bullet", "一覧", "右上の「…」から。記録を新しい順に一覧表示し、タップで地図へジャンプ。")
                     helpRow("rosette", "実績", "制県レベル(47都道府県)・訪問国数・バッジ。記録するほど増えていきます。")
                 }
                 Section("共有") {

@@ -38,6 +38,9 @@ struct ContentView: View {
     @State private var showOnboarding = false
     @State private var replayTutorial = false
     @State private var showAchievements = false
+    /// メイン表示(カレンダー / マップ)
+    enum MainTab { case calendar, map }
+    @State private var tab: MainTab = .calendar
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @AppStorage("memoryCardDismissedDate") private var memoryCardDismissedDate = ""
 
@@ -62,10 +65,19 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            mapLayer
+            if tab == .map {
+                mapLayer
+            } else {
+                TravelCalendarView(places: allPlaces.map { $0 },
+                                   members: members,
+                                   topInset: 56) { p in
+                    editingPlace = p
+                }
+                .ignoresSafeArea(edges: .bottom)
+            }
             VStack(spacing: 8) {
                 header
-                filterBar
+                if tab == .map { filterBar }
             }
             .padding(.horizontal, 12)
             .padding(.top, 4)
@@ -74,6 +86,7 @@ struct ContentView: View {
             VStack(spacing: 8) {
                 MemoryCardView(memories: todaysMemories,
                                onTap: { p in
+                                   editingPlace = p
                                    camera = .region(MKCoordinateRegion(
                                        center: .init(latitude: p.latitude, longitude: p.longitude),
                                        latitudeDelta: 1.2, longitudeDelta: 1.2))
@@ -166,6 +179,7 @@ struct ContentView: View {
         .sheet(isPresented: $showList) {
             PlacesListView(places: filtered, members: members) { p in
                 showList = false
+                tab = .map
                 camera = .region(MKCoordinateRegion(
                     center: .init(latitude: p.latitude, longitude: p.longitude),
                     latitudeDelta: 1.2, longitudeDelta: 1.2))
@@ -224,8 +238,13 @@ struct ContentView: View {
                     .background(.regularMaterial, in: Circle())
                     .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             }
-            Button { showHelp = true } label: {
-                Image(systemName: "questionmark")
+            Menu {
+                Button { showList = true } label: { Label("一覧", systemImage: "list.bullet") }
+                Button { showRanking = true } label: { Label("ランキング", systemImage: "trophy") }
+                Divider()
+                Button { showHelp = true } label: { Label("使い方", systemImage: "questionmark.circle") }
+            } label: {
+                Image(systemName: "ellipsis")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(AppPalette.chrome)
                     .frame(width: 38, height: 38)
@@ -239,8 +258,8 @@ struct ContentView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 0) {
-            barButton("list.bullet", "一覧") { showList = true }
-            barButton("trophy.fill", "ランキング") { showRanking = true }
+            barButton("calendar", "カレンダー", active: tab == .calendar) { tab = .calendar }
+            barButton("map.fill", "マップ", active: tab == .map) { tab = .map }
             // 中央の「登録」ボタンだけ大きく強調
             Button { showAddSearch = true } label: {
                 VStack(spacing: 3) {
@@ -269,7 +288,9 @@ struct ContentView: View {
         .padding(.bottom, 6)
     }
 
-    private func barButton(_ icon: String, _ label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+    private func barButton(_ icon: String, _ label: LocalizedStringKey,
+                           active: Bool = false,
+                           action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
@@ -277,7 +298,7 @@ struct ContentView: View {
                 Text(label)
                     .font(.system(size: 10, weight: .bold))
             }
-            .foregroundStyle(AppPalette.chrome)
+            .foregroundStyle(active ? AppPalette.accent : AppPalette.chrome)
             .frame(maxWidth: .infinity)
         }
     }

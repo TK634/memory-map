@@ -93,3 +93,9 @@
 
 /* 思い出 */
 "1年前の今日" = "One year ago today";
+
+/* カレンダー */
+"カレンダー" = "Calendar";
+"マップ" = "Map";
+"今年のあしあと" = "This year";
+"日付が未設定の記録" = "Places without a date";
