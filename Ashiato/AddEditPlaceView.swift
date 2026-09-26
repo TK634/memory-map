@@ -2,6 +2,7 @@ import SwiftUI
 import CoreData
 import CoreLocation
 import PhotosUI
+import MapKit
 
 struct AddEditPlaceView: View {
     @Environment(\.managedObjectContext) private var context
@@ -35,6 +36,7 @@ struct AddEditPlaceView: View {
     @State private var importingCount = 0   // 取り込み中の総枚数
     @State private var importedCount = 0    // 取り込み済み枚数
     @State private var isLoaded = false     // load完了後だけ自動保存する
+    @State private var showDeleteConfirm = false
 
     /// 保存されていない入力があるか(誤って閉じて消えるのを防ぐ判定)
     private var hasUnsavedInput: Bool {
@@ -77,107 +79,50 @@ struct AddEditPlaceView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("場所") {
-                    TextField("都市・スポット名", text: $name)
-                    Picker("区分", selection: $isJapan) {
-                        Text(AppRegion.homeLabel).tag(true)
-                        Text(AppRegion.abroadLabel).tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Section("行った人") {
-                    if members.isEmpty {
-                        Text("メンバー画面から登録してください")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    ForEach(members, id: \.objectID) { m in
-                        if let id = m.id {
-                            Button {
-                                if selectedIDs.contains(id) { selectedIDs.remove(id) }
-                                else { selectedIDs.insert(id) }
-                            } label: {
-                                HStack {
-                                    Circle().fill(m.color).frame(width: 12, height: 12)
-                                    Text(m.displayName).foregroundStyle(.primary)
-                                    Spacer()
-                                    if selectedIDs.contains(id) {
-                                        Image(systemName: "checkmark").foregroundStyle(AppPalette.accent)
-                                    }
-                                }
+            ZStack {
+                AppStyle.background
+                ScrollView {
+                    VStack(spacing: 16) {
+                        placeHero
+                        whoCard
+                        whenCard
+                        if let place {
+                            VStack(alignment: .leading, spacing: 12) {
+                                CardTitle(emoji: "🎉", title: "リアクション")
+                                ReactionBar(place: place, myName: myMemberName)
                             }
+                            .card()
                         }
+                        commentCard
+                        photoCard
+                        if place != nil { deleteButton }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
                 }
-
-                Section("いつ") {
-                    Picker("訪問年", selection: $year) {
-                        Text("未設定").tag(0)
-                        ForEach((1975...currentYear).reversed(), id: \.self) { y in
-                            Text("\(String(y))年").tag(y)
-                        }
-                    }
-                    Toggle("詳しい日付を入れる", isOn: $hasDate)
-                    if hasDate {
-                        DatePicker("行った日",
-                                   selection: Binding(get: { visitDate ?? Date() },
-                                                      set: { visitDate = $0; year = Calendar.current.component(.year, from: $0) }),
-                                   displayedComponents: .date)
-                        Toggle("泊まりの旅(期間で記録)", isOn: $hasEndDate)
-                        if hasEndDate {
-                            DatePicker("帰った日",
-                                       selection: Binding(get: { visitEndDate ?? visitDate ?? Date() },
-                                                          set: { visitEndDate = $0 }),
-                                       in: (visitDate ?? Date())...,
-                                       displayedComponents: .date)
-                            if let s = visitDate, let e = visitEndDate, e > s {
-                                let nights = Calendar.current.dateComponents([.day], from: s, to: e).day ?? 0
-                                Text("\(nights)泊\(nights + 1)日の旅")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-
-                if let place {
-                    Section {
-                        ReactionBar(place: place, myName: myMemberName)
-                            .padding(.vertical, 6)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                            .listRowBackground(Color.clear)
-                    }
-                }
-
-                commentSection
-                photoSection
-
-                if place != nil {
-                    Section {
-                        Button("この記録を削除", role: .destructive) {
-                            if let place { context.delete(place); try? context.save() }
-                            dismiss()
-                        }
-                    }
-                }
+                .scrollDismissesKeyboard(.interactively)
+                .defaultScrollAnchor(startsAtBottom ? .bottom : .top)
             }
-            .navigationTitle(place == nil ? "訪問地を追加" : "記録を編集")
+            .safeAreaInset(edge: .bottom) {
+                if place == nil { saveBar }
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(place == nil ? "キャンセル" : "閉じる") {
-                        if place != nil {
-                            commitPendingAttachments(); autosave(); dismiss()
-                        } else if hasUnsavedInput {
-                            showDiscardConfirm = true
-                        } else {
-                            dismiss()
+                if place == nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
+                            if hasUnsavedInput { showDiscardConfirm = true } else { dismiss() }
+                        } label: {
+                            Image(systemName: "xmark").font(.system(size: 14, weight: .bold))
                         }
                     }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(place == nil ? "保存" : "完了") { save() }
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                } else {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("完了") { save() }
+                            .fontWeight(.bold)
+                            .disabled(!canSave)
+                    }
                 }
             }
             .interactiveDismissDisabled(hasUnsavedInput)
@@ -192,6 +137,14 @@ struct AddEditPlaceView: View {
                 Button("破棄する", role: .destructive) { dismiss() }
                 Button("編集を続ける", role: .cancel) {}
             }
+            .confirmationDialog("この記録を削除しますか?", isPresented: $showDeleteConfirm,
+                                titleVisibility: .visible) {
+                Button("削除する", role: .destructive) {
+                    if let place { context.delete(place); try? context.save() }
+                    dismiss()
+                }
+                Button("やめる", role: .cancel) {}
+            }
             .fullScreenCover(item: Binding(
                 get: { viewerIndex.map { ViewerTarget(index: $0) } },
                 set: { viewerIndex = $0?.index }
@@ -203,6 +156,283 @@ struct AddEditPlaceView: View {
                 }
             }
         }
+    }
+
+    /// 検証用: 起動引数 -scrollBottom で下端から表示(DEBUGのみ)
+    private var startsAtBottom: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-scrollBottom")
+        #else
+        false
+        #endif
+    }
+
+    private var canSave: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    // MARK: - 場所(地図つきの見出しカード)
+
+    /// 選んでいるメンバーから決まるピンの色(地図のピンと同じルール)
+    private var previewPinColor: Color {
+        let chosen = members.filter { m in m.id.map(selectedIDs.contains) ?? false }
+        if chosen.isEmpty { return AppPalette.none }
+        if chosen.count == 1 { return chosen[0].color }
+        if members.count > 1 && chosen.count == members.count { return AppPalette.together }
+        return AppPalette.partial
+    }
+
+    private var placeHero: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Map(initialPosition: .region(MKCoordinateRegion(center: coordinate,
+                                                            latitudinalMeters: 4000,
+                                                            longitudinalMeters: 4000)),
+                interactionModes: []) {
+                Annotation("", coordinate: coordinate) {
+                    PinView(color: previewPinColor)
+                }
+            }
+            .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+            .frame(height: 150)
+            .allowsHitTesting(false)
+
+            VStack(alignment: .leading, spacing: 12) {
+                TextField("場所の名前", text: $name)
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(AppPalette.chrome)
+                HStack(spacing: 8) {
+                    regionChip(emoji: AppRegion.isJapanBased ? "🗾" : "🏠",
+                               label: AppRegion.homeLabel, selected: isJapan) { isJapan = true }
+                    regionChip(emoji: "✈️", label: AppRegion.abroadLabel, selected: !isJapan) { isJapan = false }
+                }
+            }
+            .padding(18)
+        }
+        .background(.white)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .shadow(color: Color(hex: "C98A4B").opacity(0.12), radius: 14, y: 5)
+    }
+
+    private func regionChip(emoji: String, label: String, selected: Bool,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text("\(emoji) \(label)")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(selected ? .white : AppPalette.chrome.opacity(0.7))
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(selected ? AnyShapeStyle(AppStyle.accentGradient)
+                                     : AnyShapeStyle(Color.gray.opacity(0.10)),
+                            in: Capsule())
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    // MARK: - だれと
+
+    private var whoCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CardTitle(emoji: "👫", title: "だれと行った?")
+            if members.isEmpty {
+                Text("メンバー画面から登録してください")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            FlowRow(spacing: 8) {
+                ForEach(members, id: \.objectID) { m in
+                    if let id = m.id { memberChip(m, id: id) }
+                }
+            }
+        }
+        .card()
+    }
+
+    private func memberChip(_ m: Member, id: UUID) -> some View {
+        let on = selectedIDs.contains(id)
+        return Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                if on { selectedIDs.remove(id) } else { selectedIDs.insert(id) }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                MemberAvatar(name: m.displayName, color: on ? m.color : .gray.opacity(0.45), size: 28)
+                Text(m.displayName)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(on ? AppPalette.chrome : .secondary)
+                if on {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(m.color)
+                }
+            }
+            .padding(.leading, 5).padding(.trailing, 14).padding(.vertical, 5)
+            .background(on ? m.color.opacity(0.14) : Color.gray.opacity(0.07), in: Capsule())
+            .overlay(Capsule().stroke(on ? m.color : .clear, lineWidth: 2))
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    // MARK: - いつ
+
+    private var nightsText: String? {
+        guard hasDate, hasEndDate, let s = visitDate, let e = visitEndDate, e > s else { return nil }
+        let nights = Calendar.current.dateComponents([.day], from: s, to: e).day ?? 0
+        return "\(nights)泊\(nights + 1)日"
+    }
+
+    private var whenCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CardTitle(emoji: "📅", title: "いつ?",
+                      trailing: nightsText.map { t in
+                          AnyView(Text(t)
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(AppStyle.accentGradient, in: Capsule()))
+                      })
+            if hasDate {
+                HStack(spacing: 8) {
+                    tripChip("☀️ 日帰り", selected: !hasEndDate) { hasEndDate = false }
+                    tripChip("🌙 泊まり", selected: hasEndDate) {
+                        hasEndDate = true
+                        if let s = visitDate, (visitEndDate ?? s) <= s {
+                            visitEndDate = Calendar.current.date(byAdding: .day, value: 1, to: s)
+                        }
+                    }
+                }
+                dateRow(icon: "figure.walk.departure", label: "行った日",
+                        selection: Binding(get: { visitDate ?? Date() },
+                                           set: { visitDate = $0
+                                                  year = Calendar.current.component(.year, from: $0)
+                                                  if let e = visitEndDate, e < $0 { visitEndDate = $0 } }),
+                        from: nil)
+                if hasEndDate {
+                    dateRow(icon: "house.fill", label: "帰った日",
+                            selection: Binding(get: { visitEndDate ?? visitDate ?? Date() },
+                                               set: { visitEndDate = $0 }),
+                            from: visitDate ?? Date())
+                }
+                Button {
+                    withAnimation { hasDate = false; hasEndDate = false }
+                } label: {
+                    Text("日付はわからない(年だけにする)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                HStack {
+                    Text("年")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppPalette.chrome)
+                    Spacer()
+                    Menu {
+                        Picker("", selection: $year) {
+                            Text("未設定").tag(0)
+                            ForEach((1975...currentYear).reversed(), id: \.self) { y in
+                                Text("\(String(y))年").tag(y)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(year == 0 ? String(localized: "未設定") : "\(String(year))年")
+                            Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                        }
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppPalette.accent)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(AppPalette.accent.opacity(0.12), in: Capsule())
+                    }
+                }
+                Button {
+                    withAnimation {
+                        hasDate = true
+                        if visitDate == nil {
+                            let cal = Calendar.current
+                            visitDate = (year > 0 && year != currentYear)
+                                ? cal.date(from: DateComponents(year: year, month: 1, day: 1))
+                                : Date()
+                        }
+                    }
+                } label: {
+                    Label("日付を入れる", systemImage: "plus")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppPalette.accent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .card()
+    }
+
+    private func tripChip(_ label: LocalizedStringKey, selected: Bool,
+                          action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { action() }
+        } label: {
+            Text(label)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(selected ? .white : AppPalette.chrome.opacity(0.7))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(selected ? AnyShapeStyle(AppStyle.accentGradient)
+                                     : AnyShapeStyle(Color.gray.opacity(0.10)),
+                            in: Capsule())
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    private func dateRow(icon: String, label: LocalizedStringKey,
+                         selection: Binding<Date>, from: Date?) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(AppPalette.accent)
+                .frame(width: 30, height: 30)
+                .background(AppPalette.accent.opacity(0.12), in: Circle())
+            Text(label)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(AppPalette.chrome)
+            Spacer()
+            if let from {
+                DatePicker("", selection: selection, in: from..., displayedComponents: .date)
+                    .labelsHidden()
+            } else {
+                DatePicker("", selection: selection, displayedComponents: .date)
+                    .labelsHidden()
+            }
+        }
+        .padding(10)
+        .background(Color(hex: "FFF6EA"), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    // MARK: - 保存・削除
+
+    /// 新規登録のときだけ出る大きな保存ボタン
+    private var saveBar: some View {
+        Button { save() } label: {
+            Label("あしあとを残す", systemImage: "shoeprints.fill")
+        }
+        .buttonStyle(PrimaryButtonStyle(enabled: canSave))
+        .disabled(!canSave)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+        .background(
+            LinearGradient(colors: [Color(hex: "FFFAF4").opacity(0), Color(hex: "FFFAF4")],
+                           startPoint: .top, endPoint: .center)
+                .ignoresSafeArea()
+        )
+    }
+
+    private var deleteButton: some View {
+        Button { showDeleteConfirm = true } label: {
+            Label("この記録を削除", systemImage: "trash")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.red.opacity(0.75))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
     }
 
     private struct ViewerTarget: Identifiable {
@@ -242,152 +472,201 @@ struct AddEditPlaceView: View {
         }
     }
 
-    // MARK: - コメント(無料)
+    // MARK: - ひとこと(無料)
 
-    private var commentSection: some View {
-        Section("コメント") {
-            // 追加予定コメント
+    /// 名前からメンバーの色を引く(コメントのアイコン用)
+    private func color(forAuthor name: String?) -> Color {
+        guard let name else { return AppPalette.accent }
+        return members.first { $0.displayName == name }?.color ?? AppPalette.accent
+    }
+
+    private var commentCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            CardTitle(emoji: "💬", title: "ひとこと")
+            // 古い順に並べて、下の入力欄へ会話のようにつながる
+            ForEach(existingComments.reversed(), id: \.objectID) { att in
+                commentBubble(author: att.authorName, text: att.commentText, date: att.createdAt)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            context.delete(att)
+                            try? context.save()
+                        } label: { Label("削除", systemImage: "trash") }
+                    }
+            }
             ForEach(Array(pendingComments.enumerated()), id: \.offset) { i, text in
-                HStack {
-                    Image(systemName: "text.bubble").foregroundStyle(.secondary)
-                    Text(text)
-                    Spacer()
-                    Button { pendingComments.remove(at: i) } label: {
-                        Image(systemName: "minus.circle").foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            // 既存コメントのタイムライン
-            ForEach(existingComments, id: \.objectID) { att in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(att.commentText)
-                    HStack(spacing: 6) {
-                        if let who = att.authorName, !who.isEmpty {
-                            Text(who)
-                                .font(.caption2.bold())
-                                .foregroundStyle(AppPalette.accent)
-                        }
-                        if let d = att.createdAt {
-                            Text(d.jaDateText)
-                                .font(.caption2).foregroundStyle(.secondary)
+                commentBubble(author: myMemberName, text: text, date: nil)
+                    .contextMenu {
+                        Button(role: .destructive) { pendingComments.remove(at: i) } label: {
+                            Label("削除", systemImage: "trash")
                         }
                     }
-                }
             }
-            .onDelete { offsets in
-                offsets.map { existingComments[$0] }.forEach(context.delete)
-                try? context.save()
-            }
-            HStack {
-                TextField("思い出やひとことを", text: $newComment, axis: .vertical)
-                    .lineLimit(1...3)
-                Button("追加") {
-                    let t = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !t.isEmpty else { return }
-                    pendingComments.append(t)
-                    newComment = ""
-                    // 既存の記録なら即反映(保存ボタン不要)
-                    if place != nil { commitPendingAttachments() }
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("思い出をひとこと…", text: $newComment, axis: .vertical)
+                    .lineLimit(1...4)
+                    .font(.system(size: 15, design: .rounded))
+                    .padding(.horizontal, 14).padding(.vertical, 11)
+                    .background(Color.gray.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                Button(action: sendComment) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(commentIsEmpty ? AnyShapeStyle(Color.gray.opacity(0.3))
+                                                   : AnyShapeStyle(AppStyle.accentGradient),
+                                    in: Circle())
                 }
-                .disabled(newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(PressableStyle())
+                .disabled(commentIsEmpty)
             }
         }
+        .card()
+    }
+
+    private var commentIsEmpty: Bool {
+        newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func sendComment() {
+        let t = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            pendingComments.append(t)
+            newComment = ""
+        }
+        // 既存の記録なら即反映(保存ボタン不要)
+        if place != nil { commitPendingAttachments() }
+    }
+
+    private func commentBubble(author: String?, text: String, date: Date?) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            if let author, !author.isEmpty {
+                MemberAvatar(name: author, color: color(forAuthor: author), size: 30)
+            } else {
+                // 投稿者が記録されていない古いコメント
+                Image(systemName: "person.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Color.gray.opacity(0.35), in: Circle())
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    if let author, !author.isEmpty {
+                        Text(author)
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(AppPalette.chrome)
+                    }
+                    if let date {
+                        Text(date.jaDateText)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(text)
+                    .font(.system(size: 15, design: .rounded))
+                    .foregroundStyle(AppPalette.chrome)
+                    .padding(.horizontal, 13).padding(.vertical, 9)
+                    .background(Color(hex: "FFF1DF"),
+                                in: UnevenRoundedRectangle(topLeadingRadius: 4, bottomLeadingRadius: 18,
+                                                           bottomTrailingRadius: 18, topTrailingRadius: 18,
+                                                           style: .continuous))
+            }
+            Spacer(minLength: 0)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     // MARK: - 写真(プレミアム)
 
     @ViewBuilder
-    private var photoSection: some View {
-        Section {
-            if canUsePhotos {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Label("写真", systemImage: "photo.on.rectangle.angled")
-                            .font(.subheadline.bold())
-                        Spacer()
-                        if isSharedPremium {
-                            Label("共有プレミアム", systemImage: "person.2.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(AppPalette.accent)
-                        }
-                        if !allPhotoImages.isEmpty {
-                            Text("\(allPhotoImages.count)枚")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+    private var photoCard: some View {
+        if canUsePhotos {
+            VStack(alignment: .leading, spacing: 12) {
+                CardTitle(emoji: "📸", title: "写真", trailing: AnyView(HStack(spacing: 8) {
+                    if isSharedPremium {
+                        Label("共有プレミアム", systemImage: "person.2.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(AppPalette.accent)
                     }
+                    if !allPhotoImages.isEmpty {
+                        Text("\(allPhotoImages.count)枚")
+                            .font(.caption.bold()).foregroundStyle(.secondary)
+                    }
+                }))
 
-                    if importingCount > 0 {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                            Text("写真を読み込み中… \(importedCount)/\(importingCount)")
-                                .font(.caption).foregroundStyle(.secondary)
+                if importingCount > 0 {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("写真を読み込み中… \(importedCount)/\(importingCount)")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(Color(hex: "FFF6EA"), in: RoundedRectangle(cornerRadius: 16))
+                }
+
+                if allPhotoImages.isEmpty && importingCount == 0 {
+                    PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 26))
+                                .foregroundStyle(.white)
+                                .frame(width: 56, height: 56)
+                                .background(AppStyle.accentGradient, in: Circle())
+                            Text("写真を追加")
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundStyle(AppPalette.chrome)
+                            Text("この場所の思い出を残そう")
+                                .font(.caption2).foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                        .background(Color(hex: "FFF6EA"), in: RoundedRectangle(cornerRadius: 14))
+                        .padding(.vertical, 26)
+                        .background(Color(hex: "FFF6EA"),
+                                    in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(AppPalette.accent.opacity(0.35),
+                                              style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+                        )
                     }
-
-                    if allPhotoImages.isEmpty && importingCount == 0 {
-                        PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
-                            VStack(spacing: 8) {
-                                Image(systemName: "photo.badge.plus")
-                                    .font(.system(size: 30))
-                                    .foregroundStyle(AppPalette.accent)
-                                Text("写真を追加")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(AppPalette.accent)
-                                Text("この場所の思い出を残そう")
-                                    .font(.caption2).foregroundStyle(.secondary)
-                            }
+                } else {
+                    photoGrid
+                    PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
+                        Label("写真を追加", systemImage: "plus")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppPalette.accent)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 28)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(hex: "FFF6EA"))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .strokeBorder(AppPalette.accent.opacity(0.3),
-                                                  style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                            )
-                        }
-                    } else {
-                        photoGrid
-                        PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
-                            Label("写真を追加", systemImage: "plus")
-                                .font(.footnote.bold())
-                                .foregroundStyle(AppPalette.accent)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(AppPalette.accent.opacity(0.1),
-                                            in: RoundedRectangle(cornerRadius: 12))
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-                .listRowInsets(EdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14))
-            } else {
-                Button { showPaywall = true } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(AppPalette.accent.opacity(0.12))
-                                .frame(width: 52, height: 52)
-                            Image(systemName: "photo.on.rectangle.angled")
-                                .font(.system(size: 21))
-                                .foregroundStyle(AppPalette.accent)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("写真を残す").font(.subheadline.bold()).foregroundStyle(.primary)
-                            Text("プレミアムで思い出の写真を無制限に")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
+                            .padding(.vertical, 11)
+                            .background(AppPalette.accent.opacity(0.1), in: Capsule())
                     }
                 }
             }
+            .card()
+        } else {
+            Button { showPaywall = true } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.white)
+                        .frame(width: 50, height: 50)
+                        .background(AppStyle.accentGradient,
+                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("📸 写真を残す")
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(AppPalette.chrome)
+                        Text("プレミアムで思い出の写真を無制限に")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
+                }
+                .card(padding: 14)
+            }
+            .buttonStyle(PressableStyle())
         }
     }
 

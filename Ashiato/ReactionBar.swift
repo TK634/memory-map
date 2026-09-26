@@ -79,7 +79,7 @@ struct ReactionBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // 選べるスタンプ(よく使う6つ+もっと)
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ForEach(quickStamps, id: \.self) { emoji in
                     stampButton(emoji)
                 }
@@ -87,14 +87,14 @@ struct ReactionBar: View {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(AppPalette.accent)
-                        .frame(width: 44, height: 44)
+                        .frame(maxWidth: 44, maxHeight: 44).aspectRatio(1, contentMode: .fit)
                         .background(Circle().fill(.white)
                             .shadow(color: .black.opacity(0.06), radius: 2, y: 1))
                 }
                 .buttonStyle(.plain)
             }
             .padding(.vertical, 10)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity)
             .background(
                 LinearGradient(colors: [Color(hex: "FFF6EA"), Color(hex: "FFEBD3")],
@@ -114,7 +114,7 @@ struct ReactionBar: View {
 
             // 付いているリアクション
             if !summary.isEmpty {
-                HStack(spacing: 8) {
+                FlowRow(spacing: 8) {
                     ForEach(summary, id: \.emoji) { item in
                         countChip(item)
                     }
@@ -150,8 +150,8 @@ struct ReactionBar: View {
             toggle(emoji)
         } label: {
             Text(emoji)
-                .font(.system(size: 26))
-                .frame(width: 44, height: 44)
+                .font(.system(size: 24))
+                .frame(maxWidth: 44, maxHeight: 44).aspectRatio(1, contentMode: .fit)
                 .background(
                     Circle()
                         .fill(.white)
