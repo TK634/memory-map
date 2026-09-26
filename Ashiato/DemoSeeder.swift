@@ -99,6 +99,32 @@ enum DemoSeeder {
             }
         }
 
+        // カレンダーの塗り分け確認用: 3人目を加え、1人/2人/3人の日を今月に混ぜる
+        if ProcessInfo.processInfo.arguments.contains("-seedCalendarMix") {
+            let m3 = makeMember("ソラ", "5B9A6B")
+            let cal = Calendar.current
+            let now = Date()
+            func day(_ d: Int) -> Date {
+                var c = cal.dateComponents([.year, .month], from: now); c.day = d
+                return cal.date(from: c)!
+            }
+            let mix: [(String, Int, Int?, [UUID])] = [
+                ("代官山のカフェ", 3, nil, [m1.id!]),
+                ("鎌倉",         7, nil, [m2.id!]),
+                ("箱根",        12, 13,  [m1.id!, m2.id!]),
+                ("江の島",      20, nil, [m1.id!, m2.id!, m3.id!]),
+                ("高尾山",      21, nil, [m1.id!, m3.id!]),
+            ]
+            for (name, d, e, who) in mix {
+                let p = Place(context: context)
+                p.id = UUID(); p.createdAt = Date(); p.log = log
+                p.name = name; p.latitude = 35.3; p.longitude = 139.5; p.isJapan = true
+                p.year = Int16(cal.component(.year, from: now))
+                p.visitDate = day(d); p.visitEndDate = e.map(day)
+                p.visitorIDList = who
+            }
+        }
+
         // 見た目確認用のリアクション(スクショ・デザイン検証)
         if ProcessInfo.processInfo.arguments.contains("-seedReactions") {
             for (emoji, who) in [("❤️", "タカ"), ("❤️", "ハナ"), ("🎉", "ハナ"), ("📸", "タカ")] {

@@ -72,6 +72,7 @@ struct TravelCalendarView: View {
         ScrollView {
             LazyVStack(spacing: 18, pinnedViews: []) {
                 summaryCard
+                legend
                 ForEach(months(from: map), id: \.self) { month in
                     monthSection(month, map: map)
                 }
@@ -232,13 +233,20 @@ struct TravelCalendarView: View {
     }
 
     /// 1日分のセル
+    /// その日に行ったメンバー(メンバー登録順)。複数の記録があれば合わせる
+    private func visitors(of records: [Place]) -> [Member] {
+        let ids = Set(records.flatMap(\.visitorIDList))
+        return members.filter { m in m.id.map(ids.contains) ?? false }
+    }
+
+    /// 1日分のセル。行った人の色で塗り、複数人なら人数分に塗り分ける
     private func dayCell(_ date: Date, records: [Place]) -> some View {
         let hasRecord = !records.isEmpty
         let isToday = cal.isDateInToday(date)
-        let fill: Color = {
-            guard hasRecord else { return .clear }
-            if records.count == 1 { return records[0].pinColor(members: members) }
-            return AppPalette.accent
+        let colors: [Color] = {
+            guard hasRecord else { return [] }
+            let v = visitors(of: records)
+            return v.isEmpty ? [AppPalette.none] : v.map(\.color)
         }()
         return Button {
             if hasRecord {
@@ -249,7 +257,7 @@ struct TravelCalendarView: View {
         } label: {
             ZStack {
                 if hasRecord {
-                    Circle().fill(fill)
+                    MemberPie(colors: colors)
                 } else if isToday {
                     Circle().fill(AppPalette.accent.opacity(0.12))
                 }
@@ -259,10 +267,74 @@ struct TravelCalendarView: View {
                 Text("\(cal.component(.day, from: date))")
                     .font(.system(size: 13, weight: hasRecord ? .heavy : .medium, design: .rounded))
                     .foregroundStyle(hasRecord ? .white : Color.primary.opacity(0.65))
+                    .shadow(color: .black.opacity(hasRecord && colors.count > 1 ? 0.35 : 0), radius: 1.5)
             }
             .frame(height: 38)
         }
         .buttonStyle(.plain)
+    }
+
+    /// 色の見かた(メンバーごとの色)
+    @ViewBuilder
+    private var legend: some View {
+        if !members.isEmpty {
+            FlowRow(spacing: 10) {
+                ForEach(members, id: \.objectID) { m in
+                    HStack(spacing: 5) {
+                        Circle().fill(m.color).frame(width: 12, height: 12)
+                        Text(m.displayName)
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppPalette.chrome)
+                    }
+                }
+                if members.count > 1 {
+                    HStack(spacing: 5) {
+                        MemberPie(colors: members.map(\.color)).frame(width: 12, height: 12)
+                        Text("いっしょに行った日")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 6)
+        }
+    }
+}
+
+/// 人数分に色を分けた円(1色なら塗りつぶし)
+struct MemberPie: View {
+    let colors: [Color]
+
+    var body: some View {
+        Canvas { ctx, size in
+            let r = min(size.width, size.height) / 2
+            let c = CGPoint(x: size.width / 2, y: size.height / 2)
+            guard colors.count > 1 else {
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                         with: .color(colors.first ?? .gray))
+                return
+            }
+            let step = 360.0 / Double(colors.count)
+            for (i, color) in colors.enumerated() {
+                var p = Path()
+                p.move(to: c)
+                p.addArc(center: c, radius: r,
+                         startAngle: .degrees(-90 + step * Double(i)),
+                         endAngle: .degrees(-90 + step * Double(i + 1)),
+                         clockwise: false)
+                p.closeSubpath()
+                ctx.fill(p, with: .color(color))
+            }
+            // 色の境目に白い線を入れてくっきり見せる(中央の数字にかからないよう外側だけ)
+            for i in 0..<colors.count {
+                let a = Angle.degrees(-90 + step * Double(i)).radians
+                var line = Path()
+                line.move(to: CGPoint(x: c.x + r * 0.62 * cos(a), y: c.y + r * 0.62 * sin(a)))
+                line.addLine(to: CGPoint(x: c.x + r * cos(a), y: c.y + r * sin(a)))
+                ctx.stroke(line, with: .color(.white), lineWidth: 1.5)
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
     }
 }
 
