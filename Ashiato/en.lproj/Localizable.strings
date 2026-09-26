@@ -99,3 +99,8 @@
 "マップ" = "Map";
 "今年のあしあと" = "This year";
 "日付が未設定の記録" = "Places without a date";
+"日付をタップして記録" = "Tap a date to record";
+"日付をタップして\n行った場所を登録" = "Tap a date to\nadd a place";
+"この日に行った場所を追加" = "Add a place for this day";
+"%@に行った場所" = "Places on %@";
+"カレンダーから記録" = "Record from the calendar";

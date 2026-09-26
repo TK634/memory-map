@@ -23,6 +23,7 @@ struct ContentView: View {
         let id = UUID()
         let name: String
         let coord: CLLocationCoordinate2D
+        let date: Date?
     }
     @State private var addPlace: PendingPlace?
     @State private var editingPlace: Place?
@@ -32,8 +33,13 @@ struct ContentView: View {
     @State private var showShare = false
     @State private var shareInfo: (CKShare, CKContainer)?
     @State private var shareError: String?
-    @State private var showAddSearch = false
-    @State private var pendingAdd: (name: String, coord: CLLocationCoordinate2D)?
+    /// 検索シートを開く要求。日付をシート自体に持たせて、開いた時点の値を確実に渡す
+    struct AddSearchRequest: Identifiable {
+        let id = UUID()
+        let date: Date?
+    }
+    @State private var addSearch: AddSearchRequest?
+    @State private var pendingAdd: (name: String, coord: CLLocationCoordinate2D, date: Date?)?
     @State private var showHelp = false
     @State private var showOnboarding = false
     @State private var replayTutorial = false
@@ -70,7 +76,10 @@ struct ContentView: View {
             } else {
                 TravelCalendarView(places: allPlaces.map { $0 },
                                    members: members,
-                                   topInset: 56) { p in
+                                   topInset: 56,
+                                   onAddOnDate: { d in
+                                       addSearch = AddSearchRequest(date: d)
+                                   }) { p in
                     editingPlace = p
                 }
                 .ignoresSafeArea(edges: .bottom)
@@ -104,6 +113,22 @@ struct ContentView: View {
             syncSharedPremium()
             #if DEBUG
             DemoSeeder.seedIfRequested(context: context, log: log)
+            // 検証用: カレンダーで日付をタップしたときの流れを再現
+            if ProcessInfo.processInfo.arguments.contains("-demoTapDate") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    showOnboarding = false
+                    addSearch = AddSearchRequest(date: Calendar.current.date(
+                        from: DateComponents(year: 2026, month: 9, day: 12)))
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-demoAddOnDate") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    showOnboarding = false
+                    addPlace = PendingPlace(name: "箱根湯本",
+                                            coord: .init(latitude: 35.232, longitude: 139.106),
+                                            date: Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 12)))
+                }
+            }
             if ProcessInfo.processInfo.arguments.contains("-demoCelebration") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     showOnboarding = false
@@ -139,23 +164,23 @@ struct ContentView: View {
         }) {
             HelpView { replayTutorial = true }
         }
-        .sheet(isPresented: $showAddSearch, onDismiss: {
+        .sheet(item: $addSearch, onDismiss: {
             // 検索シートで候補が確定していたら記録画面を開く
             if let p = pendingAdd {
                 pendingAdd = nil
                 camera = .region(MKCoordinateRegion(center: p.coord,
                                                     latitudeDelta: 1.5, longitudeDelta: 1.5))
-                addPlace = PendingPlace(name: p.name, coord: p.coord)
+                addPlace = PendingPlace(name: p.name, coord: p.coord, date: p.date)
             }
-        }) {
-            AddPlaceSearchView { name, coord in
-                pendingAdd = (name, coord)
-                showAddSearch = false
+        }) { req in
+            AddPlaceSearchView(date: req.date) { name, coord in
+                pendingAdd = (name, coord, req.date)
+                addSearch = nil
             }
         }
         .sheet(item: $addPlace) { pending in
             AddEditPlaceView(log: log, coordinate: pending.coord, place: nil, members: members,
-                             initialName: pending.name)
+                             initialName: pending.name, initialDate: pending.date)
         }
         .alert("共有できませんでした", isPresented: Binding(
             get: { shareError != nil }, set: { if !$0 { shareError = nil } })) {
@@ -260,22 +285,6 @@ struct ContentView: View {
         HStack(spacing: 0) {
             barButton("calendar", "カレンダー", active: tab == .calendar) { tab = .calendar }
             barButton("map.fill", "マップ", active: tab == .map) { tab = .map }
-            // 中央の「登録」ボタンだけ大きく強調
-            Button { showAddSearch = true } label: {
-                VStack(spacing: 3) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 46, height: 46)
-                        .background(AppPalette.accent, in: Circle())
-                        .shadow(color: AppPalette.accent.opacity(0.4), radius: 5, y: 2)
-                    Text("登録")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(AppPalette.chrome)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .offset(y: -8)
             barButton("person.2.fill", "メンバー") { showMembers = true }
             barButton("rosette", "実績") { showAchievements = true }
         }

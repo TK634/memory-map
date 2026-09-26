@@ -7,6 +7,8 @@ import CoreLocation
 struct AddPlaceSearchView: View {
     @Environment(\.dismiss) private var dismiss
     /// 候補確定時に呼ばれる(場所名, 座標)
+    /// カレンダーで選んだ日(見出し表示用)
+    var date: Date? = nil
     var onSelect: (String, CLLocationCoordinate2D) -> Void
 
     @State private var text = ""
@@ -19,6 +21,12 @@ struct AddPlaceSearchView: View {
     @FocusState private var focused: Bool
 
     private let examples = ["京都", "沖縄", "軽井沢", "パリ", "ハワイ"]
+
+    /// 「いまここ」は今日の記録のときだけ(過去の日付では現在地は関係ない)
+    private var showsHere: Bool {
+        guard let date else { return true }
+        return Calendar.current.isDateInToday(date)
+    }
 
     var body: some View {
         NavigationStack {
@@ -57,6 +65,7 @@ struct AddPlaceSearchView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             // いまここボタン(日常のおでかけをワンタップで記録)
+                            if showsHere {
                             Button {
                                 Task { await loadNearby() }
                             } label: {
@@ -89,8 +98,9 @@ struct AddPlaceSearchView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            }
 
-                            if locationDenied {
+                            if showsHere && locationDenied {
                                 Text("位置情報の利用がオフです。設定 → あしあと → 位置情報 から許可すると「いまここ」が使えます。")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
@@ -174,7 +184,8 @@ struct AddPlaceSearchView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("行った場所を登録")
+            .navigationTitle(date.map { String(localized: "\($0.jaDateText)に行った場所") }
+                             ?? String(localized: "行った場所を登録"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
@@ -189,6 +200,7 @@ struct AddPlaceSearchView: View {
 
     /// 位置情報が既に許可済みなら、開いた瞬間に近くの候補を出しておく
     private func preloadNearbyIfAuthorized() async {
+        guard showsHere else { return }
         guard CLLocationManager().authorizationStatus == .authorizedWhenInUse
                 || CLLocationManager().authorizationStatus == .authorizedAlways else { return }
         await loadNearby()

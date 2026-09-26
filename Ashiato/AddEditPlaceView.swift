@@ -13,6 +13,7 @@ struct AddEditPlaceView: View {
     let place: Place?          // nil なら新規追加
     let members: [Member]
     var initialName: String = ""   // 検索候補から引き継ぐ場所名
+    var initialDate: Date? = nil     // カレンダーで選んだ日
 
     @State private var name = ""
     @State private var isJapan = true
@@ -560,6 +561,12 @@ struct AddEditPlaceView: View {
             }
             // 検索候補から来た場合はその名前を優先
             if !initialName.isEmpty { name = initialName }
+            // カレンダーで選んだ日を「行った日」に
+            if let d = initialDate {
+                hasDate = true
+                visitDate = d
+                year = Calendar.current.component(.year, from: d)
+            }
             // 逆ジオコーディングで名前(未設定時)と国内/海外を推定
             let loc = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
             CLGeocoder().reverseGeocodeLocation(loc, preferredLocale: AppRegion.preferredLocale) { marks, _ in

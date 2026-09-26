@@ -23,10 +23,10 @@ struct OnboardingView: View {
                 ).tag(0)
 
                 onboardPage(
-                    icon: "magnifyingglass",
+                    icon: "calendar.badge.plus",
                     iconColor: AppPalette.chrome,
-                    title: "検索して、えらぶだけ",
-                    lines: ["下の「＋登録」ボタンから行った場所を検索して、候補から選ぶだけで記録できます。",
+                    title: "日付をタップして記録",
+                    lines: ["カレンダーで行った日をタップして、場所を検索して選ぶだけで記録できます。",
                             "泊まりの旅は期間でも記録できます。コメントもいっしょにどうぞ。"]
                 ).tag(1)
 
@@ -176,7 +176,7 @@ struct HelpView: View {
         NavigationStack {
             List {
                 Section("記録する") {
-                    helpRow("plus.circle.fill", "登録ボタンから記録", "下の「＋登録」から「京都」「パリ」などを検索し、候補を選ぶと記録画面が開きます。")
+                    helpRow("calendar.badge.plus", "カレンダーから記録", "行った日をタップし、「京都」「パリ」などを検索して候補を選ぶと記録画面が開きます。日付は自動で入ります。")
                     helpRow("calendar", "日付・期間", "行った日に加えて「泊まりの旅」は帰った日まで期間で記録できます。")
                     helpRow("hand.tap", "ピンをタップ", "登録済みのピンをタップすると編集・コメント追記ができます。")
                     helpRow("text.bubble", "コメント", "場所ごとに何件でも。行くたびに思い出を追記できます。")
@@ -190,7 +190,7 @@ struct HelpView: View {
                     helpColorRow(AppPalette.none, "グレー", "誰が行ったか未設定")
                 }
                 Section("見る・しぼり込む") {
-                    helpRow("calendar", "カレンダー", "行った日が色で塗られます。泊まりの旅は期間中の毎日が塗られ、日付をタップするとその日の記録が開きます。")
+                    helpRow("calendar", "カレンダー", "行った日が色で塗られます。泊まりの旅は期間中の毎日が塗られます。記録のある日をタップするとその日の記録、空いている日をタップすると登録が始まります。")
                     helpRow("map.fill", "マップ", "下の「マップ」タブで、行った場所を地図で見られます。")
                     helpRow("line.3.horizontal.decrease.circle", "フィルター", "マップ上部のチップで「行った人」「国内/海外」「年」をしぼり込み。")
                     helpRow("trophy", "ランキング", "右上の「…」から。メンバーごとの訪問数を比較できます。")

@@ -6,10 +6,14 @@ struct TravelCalendarView: View {
     let members: [Member]
     /// 上に重なるヘッダー分の余白
     var topInset: CGFloat = 6
+    /// 日付を選んで登録を始める
+    var onAddOnDate: (Date) -> Void = { _ in }
     var onSelectPlace: (Place) -> Void
 
     @State private var selectedDay: DaySelection?
     @State private var showUndated = false
+    /// 日の詳細シートを閉じたあとに登録を始める日
+    @State private var addAfterDismiss: Date?
 
     struct DaySelection: Identifiable {
         let date: Date
@@ -80,10 +84,19 @@ struct TravelCalendarView: View {
             .padding(.top, topInset)
         }
         .background(Color(hex: "FFF8EF"))
-        .sheet(item: $selectedDay) { sel in
+        .sheet(item: $selectedDay, onDismiss: {
+            if let d = addAfterDismiss {
+                addAfterDismiss = nil
+                onAddOnDate(d)
+            }
+        }) { sel in
             DayDetailSheet(date: sel.date,
                            places: (buildDayMap()[sel.date] ?? []),
-                           members: members) { p in
+                           members: members,
+                           onAdd: {
+                               addAfterDismiss = sel.date
+                               selectedDay = nil
+                           }) { p in
                 selectedDay = nil
                 onSelectPlace(p)
             }
@@ -114,6 +127,14 @@ struct TravelCalendarView: View {
                     .foregroundStyle(AppPalette.chrome)
             }
             Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Image(systemName: "hand.tap.fill")
+                    .foregroundStyle(AppPalette.accent)
+                Text("日付をタップして\n行った場所を登録")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
         }
         .padding(12)
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
@@ -220,8 +241,11 @@ struct TravelCalendarView: View {
             return AppPalette.accent
         }()
         return Button {
-            guard hasRecord else { return }
-            selectedDay = DaySelection(date: date)
+            if hasRecord {
+                selectedDay = DaySelection(date: date)
+            } else {
+                onAddOnDate(date)
+            }
         } label: {
             ZStack {
                 if hasRecord {
@@ -239,7 +263,6 @@ struct TravelCalendarView: View {
             .frame(height: 38)
         }
         .buttonStyle(.plain)
-        .disabled(!hasRecord)
     }
 }
 
@@ -251,11 +274,20 @@ private struct DayDetailSheet: View {
     let date: Date?
     let places: [Place]
     let members: [Member]
+    /// この日に場所を追加(日付が未設定の一覧では nil)
+    var onAdd: (() -> Void)? = nil
     var onSelect: (Place) -> Void
 
     var body: some View {
         NavigationStack {
             List {
+                if let onAdd {
+                    Button(action: onAdd) {
+                        Label("この日に行った場所を追加", systemImage: "plus.circle.fill")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(AppPalette.accent)
+                    }
+                }
                 ForEach(places, id: \.objectID) { p in
                     Button { onSelect(p) } label: {
                         HStack(spacing: 12) {
