@@ -44,3 +44,20 @@ CloudKit に置き、**写真と動画だけ**をどこに置くかを検討す�
 - Firebase 料金・Blaze必須化: https://firebase.google.com/pricing , https://firebase.google.com/docs/storage/faqs-storage-changes-announced-sept-2024
 - Supabase 料金: https://supabase.com/pricing
 - CloudKitの共有データはオーナーのiCloud容量を消費: https://fatbobman.com/en/posts/coredatawithcloudkit-5/
+
+## 参考: LINEのアルバムの仕組み
+
+- 写真・動画は **LINE運営のサーバー** に保存(利用者のスマホやiCloudの容量は使わない)
+- 保存するときに **必ず圧縮** される(元の画質のままでは残らない)
+- アルバムは削除しない限り **期限なく** 残る(トークに送っただけの写真・動画は保存期間がある)
+- 上限: 1つのアルバムに写真1,000枚・動画100本、1つのトークにアルバム100個まで
+- LINEアカウント(電話番号などで登録)が前提
+
+あしあとに当てはめると:
+- 「運営側のサーバーに圧縮して保存」は R2 案と同じ考え方
+- 圧縮(写真は長辺2000px、動画は720p・60秒)はすでに実装済みで、LINEと同じ方針
+- 「1か所あたりの上限」も LINE の「1アルバムあたりの上限」と同じ発想。
+  プレミアムでも無制限ではなく、上限(例: 1か所100枚・動画20本)を設けると費用が読みやすい
+- LINEは登録が前提なので運営サーバーに置ける。あしあとで同じことをするには Sign in with Apple が必要
+
+参考: https://news.mynavi.jp/article/20231020-2797654/ , https://appllio.com/line-album-data-limit
