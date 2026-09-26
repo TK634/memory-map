@@ -27,7 +27,9 @@ struct AddEditPlaceView: View {
 
     // コメント(無料) / 写真(プレミアム)
     @State private var photoItems: [PhotosPickerItem] = []
-    @State private var pendingImages: [Data] = []      // 圧縮済み。保存時に Attachment 化
+    @State private var pendingImages: [Data] = []      // 圧縮済み。保存時に Attachment 化(動画は表紙画像)
+    @State private var pendingVideos: [Data?] = []     // pendingImages と同じ並び。動画なら本体、写真なら nil
+    @State private var playingVideo: VideoItem?
     @State private var pendingComments: [String] = []  // 追加予定コメント
     @State private var newComment = ""
     @State private var showPaywall = false
@@ -58,6 +60,10 @@ struct AddEditPlaceView: View {
             : max(0, PremiumPolicy.freePhotosPerPlace - allPhotoImages.count)
     }
     private var canAddMorePhotos: Bool { remainingPhotoSlots.map { $0 > 0 } ?? true }
+    /// プレミアムは動画も選べる
+    private var pickerFilter: PHPickerFilter {
+        hasUnlimitedPhotos ? .any(of: [.images, .videos]) : .images
+    }
     /// 写真を選ぶ画面で一度に選べる枚数
     private var pickerLimit: Int { remainingPhotoSlots.map { max(1, $0) } ?? 10 }
     /// 共有相手の課金のおかげで使えている状態か(表示の出し分け用)
@@ -140,6 +146,7 @@ struct AddEditPlaceView: View {
             .onChange(of: formSignature) { _, _ in autosave() }
             .onChange(of: photoItems) { _, items in Task { await importPickedPhotos(items) } }
             .sheet(isPresented: $showPaywall) { PaywallView() }
+            .fullScreenCover(item: $playingVideo) { v in VideoPlayerScreen(data: v.data) }
             .confirmationDialog("入力した内容を破棄しますか?", isPresented: $showDiscardConfirm,
                                 titleVisibility: .visible) {
                 Button("保存する") { save() }
@@ -483,6 +490,7 @@ struct AddEditPlaceView: View {
     private func deletePhoto(at index: Int) {
         if index < pendingImages.count {
             pendingImages.remove(at: index)
+            if index < pendingVideos.count { pendingVideos.remove(at: index) }
         } else {
             let i = index - pendingImages.count
             guard i < existingPhotos.count else { return }
@@ -627,7 +635,7 @@ struct AddEditPlaceView: View {
             if importingCount > 0 {
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("写真を読み込み中… \(importedCount)/\(importingCount)")
+                    Text("写真・動画を読み込み中… \(importedCount)/\(importingCount)")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -636,7 +644,7 @@ struct AddEditPlaceView: View {
             }
 
             if allPhotoImages.isEmpty && importingCount == 0 {
-                PhotosPicker(selection: $photoItems, maxSelectionCount: pickerLimit, matching: .images) {
+                PhotosPicker(selection: $photoItems, maxSelectionCount: pickerLimit, matching: pickerFilter) {
                     VStack(spacing: 8) {
                         Image(systemName: "camera.fill")
                             .font(.system(size: 26))
@@ -647,7 +655,7 @@ struct AddEditPlaceView: View {
                             .font(.system(size: 15, weight: .heavy, design: .rounded))
                             .foregroundStyle(AppPalette.chrome)
                         Text(hasUnlimitedPhotos
-                             ? String(localized: "この場所の思い出を残そう")
+                             ? String(localized: "写真も動画も残せます")
                              : String(localized: "1か所\(PremiumPolicy.freePhotosPerPlace)枚まで無料"))
                             .font(.caption2).foregroundStyle(.secondary)
                     }
@@ -664,7 +672,7 @@ struct AddEditPlaceView: View {
             } else {
                 photoGrid
                 if canAddMorePhotos {
-                    PhotosPicker(selection: $photoItems, maxSelectionCount: pickerLimit, matching: .images) {
+                    PhotosPicker(selection: $photoItems, maxSelectionCount: pickerLimit, matching: pickerFilter) {
                         Label(remainingPhotoSlots.map { String(localized: "写真を追加(あと\($0)枚)") }
                                 ?? String(localized: "写真を追加"),
                               systemImage: "plus")
@@ -686,7 +694,7 @@ struct AddEditPlaceView: View {
                                 Text("もっと写真を残すならプレミアム")
                                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                                     .foregroundStyle(AppPalette.chrome)
-                                Text("写真が何枚でも追加できます")
+                                Text("写真は何枚でも、動画も残せます")
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -765,8 +773,41 @@ struct AddEditPlaceView: View {
                     .padding(7)
                 }
             }
+            .overlay {
+                if isVideo(at: index) { PlayBadge(size: 40) }
+            }
             .contentShape(RoundedRectangle(cornerRadius: 14))
-            .onTapGesture { viewerIndex = index }
+            .onTapGesture {
+                if let v = videoData(at: index) {
+                    playingVideo = VideoItem(data: v)
+                } else {
+                    viewerIndex = index
+                }
+            }
+    }
+
+    struct VideoItem: Identifiable {
+        let id = UUID()
+        let data: Data
+    }
+
+    /// 通し番号の写真が動画か(保存済みは本体を読み込まずにフラグで判定)
+    private func isVideo(at index: Int) -> Bool {
+        if index < pendingImages.count {
+            return index < pendingVideos.count && pendingVideos[index] != nil
+        }
+        let i = index - pendingImages.count
+        return i < existingPhotos.count && existingPhotos[i].isVideo
+    }
+
+    /// 通し番号の動画本体(タップして再生するときだけ読み込む)
+    private func videoData(at index: Int) -> Data? {
+        if index < pendingImages.count {
+            return index < pendingVideos.count ? pendingVideos[index] : nil
+        }
+        let i = index - pendingImages.count
+        guard i < existingPhotos.count, existingPhotos[i].isVideo else { return nil }
+        return existingPhotos[i].videoData
     }
 
     /// 通し番号から写真の投稿者名を返す
@@ -790,17 +831,25 @@ struct AddEditPlaceView: View {
         defer { importingCount = 0 }
 
         // 読み込みと圧縮を並列＋バックグラウンドで行う。
-        // (以前は1枚ずつ逐次、しかも圧縮がUIスレッドを塞いでいた)
-        let results: [(Int, Data)] = await withTaskGroup(of: (Int, Data)?.self) { group in
+        // 動画(プレミアムのみ)は720p・60秒に圧縮し、表紙画像も作る
+        let allowVideo = hasUnlimitedPhotos
+        let results: [(Int, Data, Data?)] = await withTaskGroup(of: (Int, Data, Data?)?.self) { group in
             for (i, item) in items.enumerated() {
                 group.addTask {
+                    let isMovie = item.supportedContentTypes.contains { $0.conforms(to: .movie) }
+                    if isMovie {
+                        guard allowVideo,
+                              let movie = try? await item.loadTransferable(type: PickedMovie.self),
+                              let v = await VideoProcessor.process(movie.url) else { return nil }
+                        return (i, v.poster, v.video)
+                    }
                     guard let data = try? await item.loadTransferable(type: Data.self) else { return nil }
                     // 重いデコード・リサイズ・JPEG化はメインスレッドから外す
                     guard let jpeg = await Self.compress(data) else { return nil }
-                    return (i, jpeg)
+                    return (i, jpeg, nil)
                 }
             }
-            var collected: [(Int, Data)] = []
+            var collected: [(Int, Data, Data?)] = []
             for await r in group {
                 if let r {
                     collected.append(r)
@@ -811,12 +860,13 @@ struct AddEditPlaceView: View {
         }
 
         // 選んだ順を保つ。無料の上限を超えた分は取り込まずにプレミアムを案内する
-        var picked = results.sorted { $0.0 < $1.0 }.map(\.1)
+        var picked = results.sorted { $0.0 < $1.0 }
         if let slots = remainingPhotoSlots, picked.count > slots {
             picked = Array(picked.prefix(slots))
             showPaywall = true
         }
-        pendingImages.append(contentsOf: picked)
+        pendingImages.append(contentsOf: picked.map(\.1))
+        pendingVideos.append(contentsOf: picked.map(\.2))
         importedCount = 0
         photoItems = []
         // 既存の記録なら選んだ時点で保存(保存ボタンを押さなくても反映される)
@@ -832,13 +882,15 @@ struct AddEditPlaceView: View {
             att.id = UUID(); att.createdAt = now
             att.comment = text; att.authorName = myMemberName; att.place = p
         }
-        for data in pendingImages {
+        for (i, data) in pendingImages.enumerated() {
             let att = Attachment(context: context)
             att.id = UUID(); att.createdAt = now
             att.imageData = data; att.authorName = myMemberName; att.place = p
+            if i < pendingVideos.count, let v = pendingVideos[i] { att.videoData = v; att.isVideo = true }
         }
         pendingComments.removeAll()
         pendingImages.removeAll()
+        pendingVideos.removeAll()
         try? context.save()
     }
 
@@ -933,13 +985,14 @@ struct AddEditPlaceView: View {
             att.place = p
         }
         // 写真(無料は1か所3枚まで。取り込み時に上限内に絞ってある)
-        for data in pendingImages {
+        for (i, data) in pendingImages.enumerated() {
             let att = Attachment(context: context)
             att.id = UUID()
             att.createdAt = now
             att.imageData = data
             att.authorName = myMemberName
             att.place = p
+            if i < pendingVideos.count, let v = pendingVideos[i] { att.videoData = v; att.isVideo = true }
         }
 
         try? context.save()

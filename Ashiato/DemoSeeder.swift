@@ -1,6 +1,7 @@
 import Foundation
 import CoreData
 import UIKit
+import AVFoundation
 
 #if DEBUG
 /// 起動引数 -seedDemo でサンプルデータを投入する(検証・スクリーンショット用)
@@ -170,6 +171,64 @@ enum DemoSeeder {
         if ProcessInfo.processInfo.arguments.contains("-verifyReactions") {
             verifyReactions(context: context, place: tokyo, me: "タカ", other: "ハナ")
         }
+    }
+
+    /// 動画の取り込み(圧縮・表紙作成)を検証し、東京の記録に付ける(DEBUGのみ)
+    static func verifyVideo(context: NSManagedObjectContext) async {
+        let src = FileManager.default.temporaryDirectory.appendingPathComponent("test-\(UUID()).mov")
+        guard makeTestMovie(at: src) else { print("[動画検証] テスト動画の作成に失敗"); return }
+        let srcSize = (try? Data(contentsOf: src).count) ?? 0
+        guard let result = await VideoProcessor.process(src) else { print("[動画検証] 圧縮に失敗"); return }
+        print("[動画検証] 元: \(srcSize)バイト → 圧縮後: \(result.video.count)バイト, 表紙: \(result.poster.count)バイト")
+        let req = NSFetchRequest<Place>(entityName: "Place")
+        req.predicate = NSPredicate(format: "name == %@", "東京")
+        if let tokyo = (try? context.fetch(req))?.first {
+            let a = Attachment(context: context)
+            a.id = UUID(); a.createdAt = Date(); a.authorName = "タカ"
+            a.imageData = result.poster; a.videoData = result.video; a.isVideo = true
+            a.place = tokyo
+            try? context.save()
+            print("[動画検証] 東京に動画を保存: isVideo=\(a.isVideo)")
+        }
+    }
+
+    /// 2秒のテスト動画(色が変わる)を作る
+    private static func makeTestMovie(at url: URL) -> Bool {
+        let size = CGSize(width: 640, height: 480)
+        guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mov) else { return false }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: size.width, AVVideoHeightKey: size.height,
+        ])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+            kCVPixelBufferWidthKey as String: size.width, kCVPixelBufferHeightKey as String: size.height,
+        ])
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+        let colors: [UIColor] = [.systemOrange, .systemBlue, .systemGreen, .systemPink]
+        for frame in 0..<30 {
+            while !input.isReadyForMoreMediaData { usleep(1000) }
+            var pb: CVPixelBuffer?
+            CVPixelBufferCreate(nil, Int(size.width), Int(size.height), kCVPixelFormatType_32ARGB, nil, &pb)
+            guard let buffer = pb else { return false }
+            CVPixelBufferLockBaseAddress(buffer, [])
+            let ctx = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: Int(size.width),
+                                height: Int(size.height), bitsPerComponent: 8,
+                                bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)
+            ctx?.setFillColor(colors[(frame / 8) % colors.count].cgColor)
+            ctx?.fill(CGRect(origin: .zero, size: size))
+            CVPixelBufferUnlockBaseAddress(buffer, [])
+            adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame), timescale: 15))
+        }
+        input.markAsFinished()
+        let sem = DispatchSemaphore(value: 0)
+        writer.finishWriting { sem.signal() }
+        sem.wait()
+        return writer.status == .completed
     }
 
     /// リアクションの追加・重複トグル・集計を検証(DEBUGのみ)

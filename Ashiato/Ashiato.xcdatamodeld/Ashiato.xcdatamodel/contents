@@ -6,6 +6,8 @@
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="imageData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
         <attribute name="authorName" optional="YES" attributeType="String"/>
+        <attribute name="isVideo" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="videoData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
         <relationship name="place" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Place" inverseName="attachments" inverseEntity="Place"/>
     </entity>
     <entity name="Member" representedClassName="Member" syncable="YES" codeGenerationType="class">

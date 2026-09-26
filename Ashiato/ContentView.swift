@@ -137,6 +137,9 @@ struct ContentView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showAlbum = true }
             }
             if ProcessInfo.processInfo.arguments.contains("-openMap") { tab = .map }
+            if ProcessInfo.processInfo.arguments.contains("-verifyVideo") {
+                Task { await DemoSeeder.verifyVideo(context: context) }
+            }
             if ProcessInfo.processInfo.arguments.contains("-demoAddOnDate") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     showOnboarding = false

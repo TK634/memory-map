@@ -137,6 +137,7 @@ struct AlbumView: View {
                                                     .aspectRatio(1, contentMode: .fit)
                                                     .overlay(PhotoThumb(attachment: item.att, pixel: 300))
                                                     .clipped()
+                                                    .overlay { if item.att.isVideo { PlayBadge(size: 28) } }
                                                     .overlay(alignment: .bottomLeading) {
                                                         Text(item.place.name ?? "")
                                                             .font(.system(size: 10, weight: .bold))
@@ -178,6 +179,12 @@ struct AlbumPhotoViewer: View {
     let items: [AlbumView.Item]
     @State var index: Int
     var onOpenPlace: (Place) -> Void
+    @State private var playing: VideoPlayerItem?
+
+    struct VideoPlayerItem: Identifiable {
+        let id = UUID()
+        let data: Data
+    }
 
     var body: some View {
         ZStack {
@@ -191,10 +198,18 @@ struct AlbumPhotoViewer: View {
                             ProgressView().tint(.white)
                         }
                     }
+                    .overlay {
+                        if item.att.isVideo {
+                            Button {
+                                if let v = item.att.videoData { playing = VideoPlayerItem(data: v) }
+                            } label: { PlayBadge(size: 72) }
+                        }
+                    }
                     .tag(i)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
+            .fullScreenCover(item: $playing) { v in VideoPlayerScreen(data: v.data) }
 
             VStack {
                 HStack {
