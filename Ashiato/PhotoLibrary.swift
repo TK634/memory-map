@@ -73,6 +73,15 @@ struct AlbumView: View {
 
     @State private var viewer: AlbumViewerTarget?
 
+    /// 検証用: 起動引数 -scrollBottom で下端から表示(DEBUGのみ)
+    private var startsAtBottom: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-scrollBottom")
+        #else
+        false
+        #endif
+    }
+
     struct Item: Identifiable {
         let att: Attachment
         let place: Place
@@ -157,6 +166,7 @@ struct AlbumView: View {
                         .padding(.horizontal, 16)
                         .padding(.bottom, 30)
                     }
+                    .defaultScrollAnchor(startsAtBottom ? .bottom : .top)
                 }
             }
             .navigationTitle("アルバム")
