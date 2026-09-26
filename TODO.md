@@ -77,3 +77,8 @@ iPhoneアプリ「あしあと」をApp Storeでリリースするまでのタ�
    → ペイウォールの「購入」で実際のシート(無料トライアル1週間・月額300円)が出る。
      購入・解約・復元をApp Store Connectなしで検証できる
 3. 本番前の最終確認: App Store Connect の Sandbox テスターで実購入フローを確認
+
+## リリース後に検討(保存先)
+
+- [ ] iCloud容量の苦情が出たら、写真・動画を Cloudflare R2 に移す(比較と手順は appstore/storage-options.md)
+  - Sign in with Apple / Workers で署名つきURL / アカウント削除 / プライバシー表示の変更 が必要
