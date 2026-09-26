@@ -18,7 +18,6 @@ struct AddPlaceSearchView: View {
     @State private var nearby: [MKMapItem] = []
     @State private var isLoadingNearby = false
     @State private var locationDenied = false
-    @FocusState private var focused: Bool
 
     /// 検索の例(表示は絵文字付き、検索語は地名だけ)
     private let examples: [(emoji: String, word: String)] = [
@@ -69,7 +68,6 @@ struct AddPlaceSearchView: View {
                 }
             }
             .onAppear {
-                focused = true
                 // 開いた直後に近くの候補を先読み(許可済みなら即座に出る)
                 Task { await preloadNearbyIfAuthorized() }
             }
@@ -101,11 +99,13 @@ struct AddPlaceSearchView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(AppPalette.accent)
-            TextField("お店・観光地・街の名前", text: $text)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .focused($focused)
-                .submitLabel(.search)
-                .onSubmit(runSearch)
+            // 変換確定時だけ値が変わる欄(ローマ字入力の途中で検索が走らない)
+            IMETextField(text: $text,
+                         placeholder: String(localized: "お店・観光地・街の名前"),
+                         returnKey: .search,
+                         autoFocus: true,
+                         onCommit: runSearch)
+                .frame(height: 24)
                 .onChange(of: text) { _, newValue in
                     // 入力が止まったら自動で検索(ボタンを押す手間をなくす)
                     searchTask?.cancel()
@@ -132,6 +132,7 @@ struct AddPlaceSearchView: View {
     private var hereCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
+                UIApplication.shared.dismissKeyboard()
                 Task { await loadNearby() }
             } label: {
                 HStack(spacing: 14) {
@@ -249,7 +250,6 @@ struct AddPlaceSearchView: View {
     private func loadNearby() async {
         isLoadingNearby = true
         defer { isLoadingNearby = false }
-        focused = false
         guard let coord = await LocationManager.shared.requestCurrentLocation() else {
             locationDenied = LocationManager.shared.isDenied
             return

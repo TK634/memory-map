@@ -197,9 +197,10 @@ struct AddEditPlaceView: View {
             .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: 12) {
-                TextField("場所の名前", text: $name)
-                    .font(.system(size: 26, weight: .black, design: .rounded))
-                    .foregroundStyle(AppPalette.chrome)
+                IMETextField(text: $name,
+                             placeholder: String(localized: "場所の名前"),
+                             font: .rounded(26, .black))
+                    .frame(height: 34)
                 HStack(spacing: 8) {
                     regionChip(emoji: AppRegion.isJapanBased ? "🗾" : "🏠",
                                label: AppRegion.homeLabel, selected: isJapan) { isJapan = true }
@@ -502,9 +503,12 @@ struct AddEditPlaceView: View {
                     }
             }
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("思い出をひとこと…", text: $newComment, axis: .vertical)
-                    .lineLimit(1...4)
-                    .font(.system(size: 15, design: .rounded))
+                IMETextField(text: $newComment,
+                             placeholder: String(localized: "思い出をひとこと…"),
+                             font: .rounded(15, .regular),
+                             returnKey: .send,
+                             onCommit: sendComment)
+                    .frame(height: 22)
                     .padding(.horizontal, 14).padding(.vertical, 11)
                     .background(Color.gray.opacity(0.08),
                                 in: RoundedRectangle(cornerRadius: 20, style: .continuous))

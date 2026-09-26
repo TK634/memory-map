@@ -84,10 +84,14 @@ struct MemberRow: View {
                 RoundedRectangle(cornerRadius: 6).fill(member.color).frame(width: 26, height: 26)
             }
             .buttonStyle(.plain)
-            TextField("名前", text: Binding(
-                get: { member.name ?? "" },
-                set: { member.name = $0 }))
-                .onSubmit { try? context.save() }
+            // 変換確定時だけ保存する(打つたびに保存すると変換が途切れる)
+            IMETextField(text: Binding(
+                             get: { member.name ?? "" },
+                             set: { member.name = $0; try? context.save() }),
+                         placeholder: String(localized: "名前"),
+                         font: .systemFont(ofSize: 17),
+                         textColor: .label)
+                .frame(height: 24)
         }
         .popover(isPresented: $showPalette) {
             HStack(spacing: 8) {
