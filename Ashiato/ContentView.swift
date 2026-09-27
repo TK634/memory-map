@@ -70,6 +70,15 @@ struct ContentView: View {
     // アニメ調フラット地図の塗り分けデータ(起動後に非同期読み込み)
     @State private var countryRegions: [GeoRegion] = []
     @State private var prefRegions: [GeoRegion] = []
+    /// 県・国ごとの訪問数(地図の塗り分けに使う。フィルターで絞った記録で数える)
+    @State private var prefVisitCounts: [String: Int] = [:]
+    @State private var countryVisitCounts: [String: Int] = [:]
+
+    /// 塗り分けを計算し直すきっかけ(記録・フィルター・境界データが変わったとき)
+    private var mapColorKey: String {
+        let ids = filtered.map { "\($0.latitude),\($0.longitude),\($0.isJapan)" }.joined(separator: "|")
+        return "\(prefRegions.count)-\(countryRegions.count)-\(ids.hashValue)"
+    }
 
     private var log: TravelLog { PersistenceController.shared.fetchOrCreateLog(in: context) }
     private var members: [Member] { Array(allMembers) }
@@ -386,20 +395,22 @@ struct ContentView: View {
                     MapPolygon(coordinates: band)
                         .foregroundStyle(GeoData.ocean)
                 }
-                // 2. 世界の国々(パステルで塗り分け)
+                // 2. 世界の国々(行った国だけコーラル、他はアイボリー)
                 ForEach(countryRegions) { region in
+                    let n = countryVisitCounts[region.id] ?? 0
                     ForEach(Array(region.polygons.enumerated()), id: \.offset) { _, poly in
                         MapPolygon(coordinates: poly)
-                            .foregroundStyle(region.color)
-                            .stroke(.white, lineWidth: 1)
+                            .foregroundStyle(MapTheme.visited(n))
+                            .stroke(n > 0 ? MapTheme.visitedBorder : MapTheme.border, lineWidth: 0.8)
                     }
                 }
-                // 3. 日本の都道府県(パステルで塗り分け)
+                // 3. 日本の都道府県(行った県だけコーラル。回数が多いほど濃い)
                 ForEach(prefRegions) { region in
+                    let n = prefVisitCounts[region.id] ?? 0
                     ForEach(Array(region.polygons.enumerated()), id: \.offset) { _, poly in
                         MapPolygon(coordinates: poly)
-                            .foregroundStyle(region.color)
-                            .stroke(.white, lineWidth: 1.5)
+                            .foregroundStyle(MapTheme.visited(n))
+                            .stroke(n > 0 ? MapTheme.visitedBorder : MapTheme.border, lineWidth: 1)
                     }
                 }
                 // 4. あしあとピン
@@ -419,6 +430,19 @@ struct ContentView: View {
             }
             .mapStyle(.standard(elevation: .flat, emphasis: .muted,
                                 pointsOfInterest: .excludingAll, showsTraffic: false))
+            .task(id: mapColorKey) {
+                let jp = filtered.filter(\.isJapan).map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                let ov = filtered.filter { !$0.isJapan }.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                let prefs = prefRegions, countries = countryRegions
+                let (pc, cc) = await Task.detached {
+                    (GeoRegion.visitCounts(of: prefs, coords: jp),
+                     GeoRegion.visitCounts(of: countries, coords: ov))
+                }.value
+                withAnimation(.easeOut(duration: 0.3)) {
+                    prefVisitCounts = pc
+                    countryVisitCounts = cc
+                }
+            }
     }
 
     // MARK: - フィルターバー

@@ -18,7 +18,7 @@ enum GeoData {
     ]
 
     /// 海の色(フラットな青)
-    static let ocean = Color(hex: "7EC4EA")
+    static let ocean = MapTheme.ocean
 
     /// 海を覆う帯状ポリゴン(経度45度ずつ)。
     /// 長い辺をそのまま描くと大圏コースで曲がって隙間ができるため、
@@ -130,3 +130,52 @@ extension GeoRegion {
     }
 }
 
+
+
+/// 地図の配色。色数を絞り、行った場所だけに色をつける
+enum MapTheme {
+    /// 海: くすんだ水色
+    static let ocean = Color(hex: "A9D4E4")
+    /// まだ行っていない県・国: あたたかいアイボリー
+    static let land = Color(hex: "FFF8EE")
+    static let border = Color(hex: "E9D9C3")
+    /// 行った県・国: 回数が多いほど濃いコーラル
+    static func visited(_ count: Int) -> Color {
+        switch count {
+        case ..<1: return land
+        case 1: return Color(hex: "FFBE9E")
+        case 2: return Color(hex: "FF9F7A")
+        default: return Color(hex: "F4805C")
+        }
+    }
+    static let visitedBorder = Color(hex: "EE8A64")
+}
+
+extension GeoRegion {
+    /// 領域ごとの訪問数(同じ領域に何か所記録したか)
+    static func visitCounts(of regions: [GeoRegion],
+                            coords: [CLLocationCoordinate2D]) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for c in coords {
+            if let r = regions.first(where: { $0.contains(c) }) ?? nearestRegion(in: regions, to: c) {
+                counts[r.id, default: 0] += 1
+            }
+        }
+        return counts
+    }
+
+    /// 海沿いの点のための近い領域探し(約20km以内)
+    private static func nearestRegion(in regions: [GeoRegion],
+                                      to c: CLLocationCoordinate2D) -> GeoRegion? {
+        var best: (GeoRegion, Double)?
+        for r in regions {
+            for ring in r.polygons {
+                for v in ring {
+                    let d = hypot(v.latitude - c.latitude, v.longitude - c.longitude)
+                    if d < 0.2 && d < (best?.1 ?? .infinity) { best = (r, d) }
+                }
+            }
+        }
+        return best?.0
+    }
+}
