@@ -7,6 +7,11 @@ struct GeoRegion: Identifiable {
     let id: String
     let color: Color
     let polygons: [[CLLocationCoordinate2D]]
+    /// 国の場合のISOコード(例: "FR")。都道府県や一部の地域は nil
+    var code: String? = nil
+
+    /// 国を数えるときの見出し(国コードがあればコード、なければ名前)
+    var countryKey: String { code ?? id }
 }
 
 enum GeoData {
@@ -49,10 +54,12 @@ enum GeoData {
         for object in objects {
             guard let feature = object as? MKGeoJSONFeature else { continue }
             var name = "\(resource)-\(index)"
+            var code: String?
             if let pd = feature.properties,
                let dict = try? JSONSerialization.jsonObject(with: pd) as? [String: Any],
                let n = dict["name"] as? String {
                 name = n
+                code = dict["code"] as? String
             }
             var polys: [[CLLocationCoordinate2D]] = []
             for geom in feature.geometry {
@@ -64,7 +71,7 @@ enum GeoData {
             }
             guard !polys.isEmpty else { continue }
             let hex = pastel[index % pastel.count]
-            regions.append(GeoRegion(id: name, color: Color(hex: hex), polygons: polys))
+            regions.append(GeoRegion(id: name, color: Color(hex: hex), polygons: polys, code: code))
             index += 1
         }
         return regions
@@ -165,7 +172,7 @@ extension GeoRegion {
     }
 
     /// 海沿いの点のための近い領域探し(約20km以内)
-    private static func nearestRegion(in regions: [GeoRegion],
+    fileprivate static func nearestRegion(in regions: [GeoRegion],
                                       to c: CLLocationCoordinate2D) -> GeoRegion? {
         var best: (GeoRegion, Double)?
         for r in regions {
@@ -177,5 +184,47 @@ extension GeoRegion {
             }
         }
         return best?.0
+    }
+}
+
+
+// MARK: - 国の判定(国コード)
+
+/// 海外の記録がどの国かを決める。
+/// 登録時に住所から得た国コード(Place.countryCode)を最優先にし、
+/// 無い古い記録だけ境界データから推定する。
+/// 境界データは粗い世界地図なので、シンガポール・グアム・モルディブなど
+/// 小さな国や島は国コードでしか正しく数えられない。
+enum CountryResolver {
+    /// 1件分の判定材料(スレッドをまたいで渡せるよう、Placeから値だけ取り出す)
+    struct Input: Sendable {
+        let code: String?
+        let coord: CLLocationCoordinate2D
+    }
+
+    static func inputs(of places: [Place]) -> [Input] {
+        places.filter { !$0.isJapan }.map {
+            Input(code: ($0.countryCode?.isEmpty == false) ? $0.countryCode : nil,
+                  coord: .init(latitude: $0.latitude, longitude: $0.longitude))
+        }
+    }
+
+    /// 国ごとの記録数(キーは国コード、コードの無い国は名前)
+    static func counts(_ inputs: [Input], regions: [GeoRegion]) -> [String: Int] {
+        var result: [String: Int] = [:]
+        for i in inputs {
+            if let code = i.code {
+                result[code, default: 0] += 1
+            } else if let r = regions.first(where: { $0.contains(i.coord) })
+                        ?? GeoRegion.nearestRegion(in: regions, to: i.coord) {
+                result[r.countryKey, default: 0] += 1
+            }
+        }
+        return result
+    }
+
+    /// 表示用の国名(端末の言語。例: "SG" → シンガポール)
+    static func name(for key: String) -> String {
+        key.count == 2 ? (Locale.current.localizedString(forRegionCode: key) ?? key) : key
     }
 }

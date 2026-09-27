@@ -76,7 +76,7 @@ struct ContentView: View {
 
     /// 塗り分けを計算し直すきっかけ(記録・フィルター・境界データが変わったとき)
     private var mapColorKey: String {
-        let ids = filtered.map { "\($0.latitude),\($0.longitude),\($0.isJapan)" }.joined(separator: "|")
+        let ids = filtered.map { "\($0.latitude),\($0.longitude),\($0.isJapan),\($0.countryCode ?? "")" }.joined(separator: "|")
         return "\(prefRegions.count)-\(countryRegions.count)-\(ids.hashValue)"
     }
 
@@ -140,6 +140,8 @@ struct ContentView: View {
             // 今日の思い出があれば翌朝9時に通知(旅行しない日も開く理由をつくる)
             MemoryLane.scheduleDailyReminder(places: allPlaces.map { $0 })
             syncSharedPremium()
+            // 国コードの無い古い記録に国コードを補う(シンガポールやグアムを正しく数えるため)
+            Task { await CountryBackfill.run(context: context) }
             #if DEBUG
             DemoSeeder.seedIfRequested(context: context, log: log)
             // 検証用: カレンダーで日付をタップしたときの流れを再現
@@ -154,6 +156,11 @@ struct ContentView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showAlbum = true }
             }
             if ProcessInfo.processInfo.arguments.contains("-openMap") { tab = .map }
+            if ProcessInfo.processInfo.arguments.contains("-mapZoomKanto") {
+                tab = .map
+                camera = .region(MKCoordinateRegion(center: .init(latitude: 35.45, longitude: 139.45),
+                                                    latitudeDelta: 1.3, longitudeDelta: 1.3))
+            }
             if ProcessInfo.processInfo.arguments.contains("-verifyVideo") {
                 Task { await DemoSeeder.verifyVideo(context: context) }
             }
@@ -397,7 +404,7 @@ struct ContentView: View {
                 }
                 // 2. 世界の国々(行った国だけコーラル、他はアイボリー)
                 ForEach(countryRegions) { region in
-                    let n = countryVisitCounts[region.id] ?? 0
+                    let n = countryVisitCounts[region.countryKey] ?? 0
                     ForEach(Array(region.polygons.enumerated()), id: \.offset) { _, poly in
                         MapPolygon(coordinates: poly)
                             .foregroundStyle(MapTheme.visited(n))
@@ -415,16 +422,11 @@ struct ContentView: View {
                 }
                 // 4. あしあとピン
                 ForEach(filtered, id: \.objectID) { p in
-                    Annotation(p.name ?? "", coordinate: .init(latitude: p.latitude, longitude: p.longitude)) {
-                        // 写真のある場所は写真のピンにして、地図からも思い出を見返せるように
-                        Group {
-                            if let cover = p.coverPhoto {
-                                PhotoPin(attachment: cover, ringColor: p.pinColor(members: members))
-                            } else {
-                                PinView(color: p.pinColor(members: members))
-                            }
-                        }
-                        .onTapGesture { editingPlace = p }
+                    // しっぽの先が場所を指すよう、ピンの下端を座標に合わせる
+                    Annotation(p.name ?? "", coordinate: .init(latitude: p.latitude, longitude: p.longitude),
+                               anchor: .bottom) {
+                        MapPin(place: p, members: members)
+                            .onTapGesture { editingPlace = p }
                     }
                 }
             }
@@ -432,11 +434,11 @@ struct ContentView: View {
                                 pointsOfInterest: .excludingAll, showsTraffic: false))
             .task(id: mapColorKey) {
                 let jp = filtered.filter(\.isJapan).map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
-                let ov = filtered.filter { !$0.isJapan }.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                let ov = CountryResolver.inputs(of: filtered)
                 let prefs = prefRegions, countries = countryRegions
                 let (pc, cc) = await Task.detached {
                     (GeoRegion.visitCounts(of: prefs, coords: jp),
-                     GeoRegion.visitCounts(of: countries, coords: ov))
+                     CountryResolver.counts(ov, regions: countries))
                 }.value
                 withAnimation(.easeOut(duration: 0.3)) {
                     prefVisitCounts = pc
@@ -564,18 +566,69 @@ struct ContentView: View {
 
 // MARK: - ピン表示
 
-/// 写真つきのピン: 丸い写真に行った人の色の枠
-struct PhotoPin: View {
-    let attachment: Attachment
-    let ringColor: Color
+/// 地図のピン。写真があれば写真、なければ足あとマーク。
+/// 下のしっぽの先が場所を指し、右下の点で行った人が分かる(カレンダーと同じ見せ方)
+struct MapPin: View {
+    let place: Place
+    let members: [Member]
+
+    private var dotColors: [Color] {
+        let v = place.visitors(in: members)
+        return v.isEmpty ? [AppPalette.none] : v.map(\.color)
+    }
 
     var body: some View {
-        PhotoThumb(attachment: attachment, pixel: 120)
-            .frame(width: 40, height: 40)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white, lineWidth: 3))
-            .overlay(Circle().stroke(ringColor, lineWidth: 1.5).padding(-1.5))
-            .shadow(color: .black.opacity(0.28), radius: 4, y: 2)
+        VStack(spacing: -1) {
+            head
+                .overlay(alignment: .bottomTrailing) { visitorDots.offset(x: 8, y: 6) }
+            PinTail()
+                .fill(.white)
+                .frame(width: 10, height: 7)
+                .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var head: some View {
+        if let cover = place.coverPhoto {
+            PhotoThumb(attachment: cover, pixel: 110)
+                .frame(width: 34, height: 34)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(.white, lineWidth: 2.5))
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
+        } else {
+            PinView(color: place.pinColor(members: members))
+        }
+    }
+
+    /// 行った人の色の点(4人を超えたら3つ+人数)
+    private var visitorDots: some View {
+        HStack(spacing: 2) {
+            let many = dotColors.count > 4
+            ForEach(Array(dotColors.prefix(many ? 3 : 4).enumerated()), id: \.offset) { _, c in
+                Circle().fill(c).frame(width: 7, height: 7)
+            }
+            if many {
+                Text("+\(dotColors.count - 3)")
+                    .font(.system(size: 8, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 4).padding(.vertical, 3)
+        .background(.white, in: Capsule())
+        .shadow(color: .black.opacity(0.15), radius: 1.5, y: 1)
+    }
+}
+
+/// ピンのしっぽ(下向きの三角)
+struct PinTail: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 

@@ -19,7 +19,26 @@ enum DemoSeeder {
         guard isRequested else { return }
         let req = NSFetchRequest<Place>(entityName: "Place")
         let existing = (try? context.count(for: req)) ?? 0
-        guard existing < 5 else { return }   // 二重投入防止
+        if existing >= 5 {
+            // すでにデータがあるときは、小さな国の検証データだけ追加できる
+            if ProcessInfo.processInfo.arguments.contains("-seedSmallCountries") {
+                let r2 = NSFetchRequest<Place>(entityName: "Place")
+                r2.predicate = NSPredicate(format: "name == %@", "マリーナベイ")
+                if ((try? context.count(for: r2)) ?? 0) == 0 {
+                    let members = (try? context.fetch(NSFetchRequest<Member>(entityName: "Member"))) ?? []
+                    for (name, lat, lon) in [("マリーナベイ", 1.2834, 103.8607), ("タモン湾", 13.5162, 144.8032)] {
+                        let p = Place(context: context)
+                        p.id = UUID(); p.createdAt = Date(); p.log = log
+                        p.name = name; p.latitude = lat; p.longitude = lon; p.isJapan = false
+                        p.year = 2025
+                        p.visitDate = Calendar.current.date(from: DateComponents(year: 2025, month: 11, day: 3))
+                        p.visitorIDList = members.compactMap(\.id)
+                    }
+                    try? context.save()
+                }
+            }
+            return
+        }
 
         // メンバー2人
         func makeMember(_ name: String, _ hex: String) -> Member {
@@ -153,6 +172,16 @@ enum DemoSeeder {
                     a.id = UUID(); a.createdAt = Date(); a.imageData = jpeg
                     a.authorName = "タカ"; a.place = p
                 }
+            }
+        }
+
+        // 小さな国の判定確認用: シンガポール・グアム(国コードは空のまま入れ、後から補う処理を確かめる)
+        if ProcessInfo.processInfo.arguments.contains("-seedSmallCountries") {
+            for (name, lat, lon) in [("マリーナベイ", 1.2834, 103.8607), ("タモン湾", 13.5162, 144.8032)] {
+                let p = Place(context: context)
+                p.id = UUID(); p.createdAt = Date(); p.log = log
+                p.name = name; p.latitude = lat; p.longitude = lon; p.isJapan = false
+                p.year = 2025; p.visitDate = date(2025, 11, 3); p.visitorIDList = both
             }
         }
 

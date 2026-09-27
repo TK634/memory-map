@@ -18,6 +18,8 @@ struct AddEditPlaceView: View {
 
     @State private var name = ""
     @State private var isJapan = true
+    /// 住所から得た国コード(例: "SG")。国の数え方に使う
+    @State private var countryCode: String?
     @State private var year: Int = 0
     @State private var visitDate: Date? = nil
     @State private var hasDate = false
@@ -476,6 +478,7 @@ struct AddEditPlaceView: View {
         guard let p = place, isLoaded else { return }
         p.name = name.trimmingCharacters(in: .whitespaces)
         p.isJapan = isJapan
+        if let countryCode { p.countryCode = countryCode }
         p.year = Int16(year)
         p.visitDate = hasDate ? visitDate : nil
         p.visitEndDate = (hasDate && hasEndDate) ? visitEndDate : nil
@@ -905,6 +908,7 @@ struct AddEditPlaceView: View {
         if let p = place {
             name = p.name ?? ""
             isJapan = p.isJapan
+            countryCode = p.countryCode
             year = Int(p.year)
             visitDate = p.visitDate
             hasDate = p.visitDate != nil
@@ -937,6 +941,7 @@ struct AddEditPlaceView: View {
                 guard let m = marks?.first else { return }
                 if name.isEmpty { name = m.locality ?? m.administrativeArea ?? m.name ?? "" }
                 isJapan = (m.isoCountryCode == AppRegion.homeISOCode)
+                countryCode = m.isoCountryCode
             }
         }
     }
@@ -952,6 +957,7 @@ struct AddEditPlaceView: View {
         }
         p.name = name.trimmingCharacters(in: .whitespaces)
         p.isJapan = isJapan
+        if let countryCode { p.countryCode = countryCode }
         p.year = Int16(year)
         p.visitDate = hasDate ? visitDate : nil
         p.visitEndDate = (hasDate && hasEndDate) ? visitEndDate : nil

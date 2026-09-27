@@ -25,8 +25,10 @@ struct AchievementsView: View {
     private var visitedPrefs: Set<String> {
         GeoRegion.visitedNames(of: prefRegions, coords: japanCoords)
     }
+    /// 行った国(表示用の国名)。国コードで数えるので小さな国や島も正しく数えられる
     private var visitedCountries: Set<String> {
-        GeoRegion.visitedNames(of: countryRegions, coords: abroadCoords)
+        let counts = CountryResolver.counts(CountryResolver.inputs(of: places), regions: countryRegions)
+        return Set(counts.keys.map(CountryResolver.name(for:)))
     }
     /// 全員で行った場所の数(メンバー2人以上のとき)
     private var togetherCount: Int {
