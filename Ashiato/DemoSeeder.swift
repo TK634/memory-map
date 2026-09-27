@@ -2,6 +2,8 @@ import Foundation
 import CoreData
 import UIKit
 import AVFoundation
+import EventKit
+import CoreLocation
 
 #if DEBUG
 /// 起動引数 -seedDemo でサンプルデータを投入する(検証・スクリーンショット用)
@@ -200,6 +202,47 @@ enum DemoSeeder {
         if ProcessInfo.processInfo.arguments.contains("-verifyReactions") {
             verifyReactions(context: context, place: tokyo, me: "タカ", other: "ハナ")
         }
+    }
+
+    /// カレンダー連携の検証: 予定を2つ入れて連携をオンにし、書き出し結果を出力(DEBUGのみ)
+    @MainActor
+    static func verifyCalendar(places: [Place], members: [Member]) async {
+        let sync = CalendarSync.shared
+        guard await sync.requestAccess() else { print("[カレンダー検証] アクセス不可"); return }
+        UserDefaults.standard.set(true, forKey: CalendarSync.importKey)
+        UserDefaults.standard.set(true, forKey: CalendarSync.exportKey)
+        let store = sync.store
+        let cal = Calendar.current
+        func day(_ d: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: 9, day: d))! }
+        guard let target = store.defaultCalendarForNewEvents else { print("[カレンダー検証] 既定カレンダーなし"); return }
+        let existing = store.events(matching: store.predicateForEvents(withStart: day(12), end: day(14), calendars: [target]))
+        if !existing.contains(where: { $0.title == "箱根旅行" }) {
+            let trip = EKEvent(eventStore: store)
+            trip.calendar = target; trip.title = "箱根旅行"; trip.isAllDay = true
+            trip.startDate = day(12); trip.endDate = day(13)
+            let loc = EKStructuredLocation(title: "箱根湯本")
+            loc.geoLocation = CLLocation(latitude: 35.232, longitude: 139.106)
+            trip.structuredLocation = loc
+            try? store.save(trip, span: .thisEvent, commit: true)
+            let lunch = EKEvent(eventStore: store)
+            lunch.calendar = target; lunch.title = "友達とランチ"; lunch.location = "代官山"
+            lunch.startDate = day(12).addingTimeInterval(12 * 3600)
+            lunch.endDate = day(12).addingTimeInterval(13 * 3600)
+            try? store.save(lunch, span: .thisEvent, commit: true)
+        }
+        let found = sync.events(on: day(12))
+        print("[カレンダー検証] 9/12の予定: \(found.map { "\($0.title ?? "")(最終日: \(CalendarSync.lastDay(of: $0).map { cal.component(.day, from: $0) } ?? 0))" })")
+        sync.exportAll(places, members: members)
+        let own = store.calendars(for: .event).first { $0.title == "あしあと" }
+        let written = own.map { store.events(matching: store.predicateForEvents(
+            withStart: day(1).addingTimeInterval(-86400 * 900), end: day(30).addingTimeInterval(86400 * 30), calendars: [$0])) } ?? []
+        print("[カレンダー検証] あしあとカレンダー: \(own != nil ? "あり" : "なし"), 書き出した予定: \(written.count)件")
+        print("[カレンダー検証] 例: \(written.prefix(3).map { $0.title ?? "" })")
+        // 二重に書かないか(もう一度書き出しても増えない)
+        sync.exportAll(places, members: members)
+        let again = own.map { store.events(matching: store.predicateForEvents(
+            withStart: day(1).addingTimeInterval(-86400 * 900), end: day(30).addingTimeInterval(86400 * 30), calendars: [$0])) } ?? []
+        print("[カレンダー検証] 再書き出し後: \(again.count)件(同じなら二重登録なし)")
     }
 
     /// 動画の取り込み(圧縮・表紙作成)を検証し、東京の記録に付ける(DEBUGのみ)

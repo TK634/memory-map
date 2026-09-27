@@ -15,6 +15,7 @@ struct AddEditPlaceView: View {
     let members: [Member]
     var initialName: String = ""   // 検索候補から引き継ぐ場所名
     var initialDate: Date? = nil     // カレンダーで選んだ日
+    var initialEndDate: Date? = nil  // 泊まりの予定から来たときの最終日
 
     @State private var name = ""
     @State private var isJapan = true
@@ -144,6 +145,10 @@ struct AddEditPlaceView: View {
             }
             .interactiveDismissDisabled(hasUnsavedInput)
             .onAppear(perform: load)
+            // 既存の記録は閉じたときにカレンダーへ反映(書き出しがオンのとき)
+            .onDisappear {
+                if let place, !place.isDeleted { CalendarSync.shared.export(place, members: members) }
+            }
             // 既存の記録は入力が変わるたび自動保存(保存ボタンを押し忘れても消えない)
             .onChange(of: formSignature) { _, _ in autosave() }
             .onChange(of: photoItems) { _, items in Task { await importPickedPhotos(items) } }
@@ -158,7 +163,10 @@ struct AddEditPlaceView: View {
             .confirmationDialog("この記録を削除しますか?", isPresented: $showDeleteConfirm,
                                 titleVisibility: .visible) {
                 Button("削除する", role: .destructive) {
-                    if let place { context.delete(place); try? context.save() }
+                    if let place {
+                        CalendarSync.shared.remove(place)
+                        context.delete(place); try? context.save()
+                    }
                     dismiss()
                 }
                 Button("やめる", role: .cancel) {}
@@ -935,6 +943,11 @@ struct AddEditPlaceView: View {
                 visitDate = d
                 year = Calendar.current.component(.year, from: d)
             }
+            if let e = initialEndDate {
+                hasDate = true
+                hasEndDate = true
+                visitEndDate = e
+            }
             // 逆ジオコーディングで名前(未設定時)と国内/海外を推定
             let loc = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
             CLGeocoder().reverseGeocodeLocation(loc, preferredLocale: AppRegion.preferredLocale) { marks, _ in
@@ -999,6 +1012,7 @@ struct AddEditPlaceView: View {
         }
 
         try? context.save()
+        CalendarSync.shared.export(p, members: members)
         dismiss()
     }
 }

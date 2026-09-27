@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import EventKit
 
 /// 「登録」ボタンから開く検索シート。
 /// 行った場所を検索 → 候補を選ぶと記録画面へ進む。
@@ -9,7 +10,8 @@ struct AddPlaceSearchView: View {
     /// 候補確定時に呼ばれる(場所名, 座標)
     /// カレンダーで選んだ日(見出し表示用)
     var date: Date? = nil
-    var onSelect: (String, CLLocationCoordinate2D) -> Void
+    /// 候補確定時(場所名, 座標, 泊まりの予定なら最終日)
+    var onSelect: (String, CLLocationCoordinate2D, Date?) -> Void
 
     @State private var text = ""
     @State private var results: [MKMapItem] = []
@@ -18,6 +20,66 @@ struct AddPlaceSearchView: View {
     @State private var nearby: [MKMapItem] = []
     @State private var isLoadingNearby = false
     @State private var locationDenied = false
+
+    /// カレンダーの、その日の予定
+    @State private var dayEvents: [EKEvent] = []
+    /// 予定から検索したときの最終日(泊まりの予定の帰った日)
+    @State private var eventLastDay: Date?
+
+    /// 予定の一覧
+    private var eventList: some View {
+        VStack(spacing: 10) {
+            ForEach(dayEvents, id: \.eventIdentifier) { ev in
+                Button { useEvent(ev) } label: {
+                    HStack(spacing: 14) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color(cgColor: ev.calendar.cgColor))
+                            .frame(width: 5, height: 40)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(ev.title ?? "")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundStyle(AppPalette.chrome)
+                                .lineLimit(1)
+                            HStack(spacing: 6) {
+                                if let loc = ev.location, !loc.isEmpty {
+                                    Label(loc, systemImage: "mappin").lineLimit(1)
+                                }
+                                if let last = CalendarSync.lastDay(of: ev) {
+                                    let nights = Calendar.current.dateComponents(
+                                        [.day], from: Calendar.current.startOfDay(for: ev.startDate), to: last).day ?? 0
+                                    Text("\(nights)泊\(nights + 1)日")
+                                }
+                            }
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(AppPalette.accent)
+                    }
+                    .padding(12)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: Color(hex: "C98A4B").opacity(0.08), radius: 8, y: 3)
+                }
+                .buttonStyle(PressableStyle())
+            }
+        }
+    }
+
+    /// 予定から記録する。場所の座標があればそのまま、なければ場所名で検索する
+    private func useEvent(_ ev: EKEvent) {
+        let last = CalendarSync.lastDay(of: ev)
+        let placeName = (ev.structuredLocation?.title).flatMap { $0.isEmpty ? nil : $0 }
+            ?? ev.location.flatMap { $0.isEmpty ? nil : $0 }
+        if let geo = ev.structuredLocation?.geoLocation {
+            onSelect(placeName ?? ev.title ?? "", geo.coordinate, last)
+        } else {
+            eventLastDay = last
+            text = placeName ?? ev.title ?? ""
+            runSearch()
+        }
+    }
 
     /// 検索の例(表示は絵文字付き、検索語は地名だけ)
     private let examples: [(emoji: String, word: String)] = [
@@ -39,6 +101,10 @@ struct AddPlaceSearchView: View {
                         hero
                         searchField
                         if results.isEmpty {
+                            if !dayEvents.isEmpty {
+                                sectionLabel("📅 この日の予定")
+                                eventList
+                            }
                             if showsHere { hereCard }
                             if !nearby.isEmpty {
                                 sectionLabel("📍 近くの場所")
@@ -70,6 +136,8 @@ struct AddPlaceSearchView: View {
             .onAppear {
                 // 開いた直後に近くの候補を先読み(許可済みなら即座に出る)
                 Task { await preloadNearbyIfAuthorized() }
+                // カレンダーの予定を読む(連携がオンのときだけ)
+                if let date { dayEvents = CalendarSync.shared.events(on: date) }
             }
         }
     }
@@ -205,7 +273,7 @@ struct AddPlaceSearchView: View {
             ForEach(items, id: \.self) { item in
                 let icon = PlaceCategoryIcon.symbol(for: item)
                 Button {
-                    onSelect(item.name ?? "", item.placemark.coordinate)
+                    onSelect(item.name ?? "", item.placemark.coordinate, eventLastDay)
                 } label: {
                     HStack(spacing: 14) {
                         Image(systemName: icon.name)

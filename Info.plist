@@ -21,6 +21,9 @@
 	<key>CFBundleAllowMixedLocalizations</key>
 	<true/>
 	<!-- 「いまここを記録」で近くのお店・公園を探すためだけに使用。追跡はしない -->
+	<!-- カレンダー連携(予定の取り込みと、行った場所の書き出し) -->
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>カレンダーの予定から行った場所を記録したり、行った場所を「あしあと」カレンダーに書き出したりするために使います。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>「いまここを記録」で、近くのお店や公園をすぐ選べるようにするために使います。現在地を保存したり送信したりはしません。</string>
 </dict>

@@ -24,6 +24,7 @@ struct ContentView: View {
         let name: String
         let coord: CLLocationCoordinate2D
         let date: Date?
+        var endDate: Date? = nil
     }
     @State private var addPlace: PendingPlace?
     @State private var editingPlace: Place?
@@ -47,7 +48,8 @@ struct ContentView: View {
         let date: Date?
     }
     @State private var addSearch: AddSearchRequest?
-    @State private var pendingAdd: (name: String, coord: CLLocationCoordinate2D, date: Date?)?
+    @State private var pendingAdd: (name: String, coord: CLLocationCoordinate2D, date: Date?, endDate: Date?)?
+    @State private var showCalendarSettings = false
     @State private var showHelp = false
     @State private var showOnboarding = false
     @State private var replayTutorial = false
@@ -140,6 +142,8 @@ struct ContentView: View {
             // 今日の思い出があれば翌朝9時に通知(旅行しない日も開く理由をつくる)
             MemoryLane.scheduleDailyReminder(places: allPlaces.map { $0 })
             syncSharedPremium()
+            // カレンダー書き出しがオンなら、共有相手が増やした記録も含めて反映する
+            CalendarSync.shared.exportAll(allPlaces.map { $0 }, members: members)
             // 国コードの無い古い記録に国コードを補う(シンガポールやグアムを正しく数えるため)
             Task { await CountryBackfill.run(context: context) }
             #if DEBUG
@@ -160,6 +164,9 @@ struct ContentView: View {
                 tab = .map
                 camera = .region(MKCoordinateRegion(center: .init(latitude: 35.45, longitude: 139.45),
                                                     latitudeDelta: 1.3, longitudeDelta: 1.3))
+            }
+            if ProcessInfo.processInfo.arguments.contains("-verifyCalendar") {
+                Task { await DemoSeeder.verifyCalendar(places: allPlaces.map { $0 }, members: members) }
             }
             if ProcessInfo.processInfo.arguments.contains("-verifyVideo") {
                 Task { await DemoSeeder.verifyVideo(context: context) }
@@ -213,17 +220,18 @@ struct ContentView: View {
                 pendingAdd = nil
                 camera = .region(MKCoordinateRegion(center: p.coord,
                                                     latitudeDelta: 1.5, longitudeDelta: 1.5))
-                addPlace = PendingPlace(name: p.name, coord: p.coord, date: p.date)
+                addPlace = PendingPlace(name: p.name, coord: p.coord, date: p.date, endDate: p.endDate)
             }
         }) { req in
-            AddPlaceSearchView(date: req.date) { name, coord in
-                pendingAdd = (name, coord, req.date)
+            AddPlaceSearchView(date: req.date) { name, coord, endDate in
+                pendingAdd = (name, coord, req.date, endDate)
                 addSearch = nil
             }
         }
         .sheet(item: $addPlace) { pending in
             AddEditPlaceView(log: log, coordinate: pending.coord, place: nil, members: members,
-                             initialName: pending.name, initialDate: pending.date)
+                             initialName: pending.name, initialDate: pending.date,
+                             initialEndDate: pending.endDate)
         }
         .alert("共有できませんでした", isPresented: Binding(
             get: { shareError != nil }, set: { if !$0 { shareError = nil } })) {
@@ -237,6 +245,9 @@ struct ContentView: View {
                              place: place, members: members)
         }
         .sheet(isPresented: $showMembers) { MembersView(log: log) }
+        .sheet(isPresented: $showCalendarSettings) {
+            CalendarSettingsView(places: allPlaces.map { $0 }, members: members)
+        }
         .sheet(isPresented: $showAlbum) {
             AlbumView(places: allPlaces.map { $0 }, members: members) { p in
                 editingPlace = p
@@ -345,6 +356,7 @@ struct ContentView: View {
                     Label("共有の管理(参加者・停止)", systemImage: "person.2.badge.gearshape")
                 }
                 Button { showList = true } label: { Label("一覧", systemImage: "list.bullet") }
+                Button { showCalendarSettings = true } label: { Label("カレンダー連携", systemImage: "calendar.badge.plus") }
                 Button { showRanking = true } label: { Label("ランキング", systemImage: "trophy") }
                 Divider()
                 Button { showHelp = true } label: { Label("使い方", systemImage: "questionmark.circle") }
