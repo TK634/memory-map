@@ -19,7 +19,7 @@ struct OnboardingView: View {
                     title: "あしあとへようこそ",
                     lines: ["行った場所に「あしあと」を残す地図アプリです。",
                             "旅行はもちろん、はじめて行ったお店や公園、休日のおでかけも。",
-                            "積み重ねた場所が、みんなの思い出の地図になります。"]
+                            "積み重ねた場所が、恋人や家族との思い出の地図になります。"]
                 ).tag(0)
 
                 onboardPage(
@@ -35,7 +35,7 @@ struct OnboardingView: View {
                 onboardPage(
                     icon: "person.2.fill",
                     iconColor: AppPalette.together,
-                    title: "家族や友達と共有",
+                    title: "恋人や家族と共有",
                     lines: ["メンバー画面(人型ボタン)で家族や友達を登録。",
                             "招待すると、相手のiPhoneでも同じ地図を一緒に編集できます。"]
                 ).tag(3)
@@ -51,7 +51,7 @@ struct OnboardingView: View {
                     onFinish()
                     onInvite?()
                 } label: {
-                    Label("パートナーを招待する", systemImage: "person.badge.plus")
+                    Label("恋人や家族を招待する", systemImage: "person.badge.plus")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -95,7 +95,7 @@ struct OnboardingView: View {
             Image(systemName: "person.badge.plus")
                 .font(.system(size: 64))
                 .foregroundStyle(AppPalette.accent)
-            Text("ひとりより、みんなで").font(.title2.bold())
+            Text("ひとりより、いっしょに").font(.title2.bold())
             VStack(spacing: 8) {
                 Text("相手が記録した場所も同じ地図に集まります。")
                 Text("「どこ行ったっけ?」がなくなり、次の行き先も決めやすくなります。")

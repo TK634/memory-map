@@ -1,6 +1,6 @@
 # あしあと (Ashiato)
 
-訪れた場所を地図にピンで記録し、iCloudで夫婦・友達と共有できるiPhoneアプリ。
+訪れた場所を地図にピンで記録し、iCloudで恋人・家族・友達と共有できるiPhoneアプリ。
 
 - `Ashiato.xcodeproj` — Xcodeプロジェクト(これを開いて開発)
 - `Ashiato/` — アプリ本体のソース(SwiftUI + MapKit + CloudKit + StoreKit 2)

@@ -3,7 +3,7 @@ import CloudKit
 
 /// NSPersistentCloudKitContainer を使った iCloud 同期スタック。
 /// - 自分のデバイス間は自動同期(プライベートDB)
-/// - 夫婦・友達との共有は CKShare(共有DB)で実現
+/// - 恋人・家族・友達との共有は CKShare(共有DB)で実現
 final class PersistenceController {
     static let shared = PersistenceController()
 
