@@ -100,6 +100,48 @@ final class PersistenceController {
     // MARK: - 共有(CKShare)
 
     /// TravelLog を共有するための CKShare を取得(なければ作成)
+    /// プライベート/共有の保存先
+    private func store(for scope: CKDatabase.Scope) -> NSPersistentStore? {
+        guard let desc = container.persistentStoreDescriptions
+                .first(where: { $0.cloudKitContainerOptions?.databaseScope == scope }),
+              let url = desc.url else { return nil }
+        return container.persistentStoreCoordinator.persistentStore(for: url)
+    }
+
+    /// LINEなどで送れる招待リンク。リンクを受け取った人は誰でも参加できる(読み書き可)。
+    /// やめたいときは「共有の管理」から共有を止めればリンクは無効になる
+    func inviteURL(for log: TravelLog) async throws -> URL {
+        var (share, _) = try await getOrCreateShare(for: log)
+        if share.publicPermission != .readWrite {
+            // 公開範囲を変えられるのは記録帳を作った人(オーナー)だけ
+            guard share.currentUserParticipant?.role == .owner || share.owner == share.currentUserParticipant,
+                  let privateStore = store(for: .private) else {
+                throw NSError(domain: "Ashiato", code: 2, userInfo: [
+                    NSLocalizedDescriptionKey: "招待できるのは、この記録帳を作った人だけです。",
+                ])
+            }
+            share.publicPermission = .readWrite
+            share[CKShare.SystemFieldKey.title] = "あしあと" as CKRecordValue
+            share = try await container.persistUpdatedShare(share, in: privateStore)
+        }
+        guard let url = share.url else {
+            throw NSError(domain: "Ashiato", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "招待リンクを作れませんでした。通信環境を確認してもう一度お試しください。",
+            ])
+        }
+        return url
+    }
+
+    /// 招待リンクを開いたときに呼ばれる: 相手の記録帳に参加する
+    func acceptShare(_ metadata: CKShare.Metadata) async throws {
+        guard isCloudEnabled, let shared = store(for: .shared) else {
+            throw NSError(domain: "Ashiato", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: "iCloudにサインインしてから、もう一度リンクを開いてください。",
+            ])
+        }
+        _ = try await container.acceptShareInvitations(from: [metadata], into: shared)
+    }
+
     func getOrCreateShare(for log: TravelLog) async throws -> (CKShare, CKContainer) {
         guard isCloudEnabled else {
             throw NSError(domain: "Ashiato", code: 1, userInfo: [

@@ -3,6 +3,8 @@ import CoreData
 
 @main
 struct AshiatoApp: App {
+    // 招待リンクを開いたときに参加処理を受け取る
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     let persistence = PersistenceController.shared
     @StateObject private var store = StoreManager()
 

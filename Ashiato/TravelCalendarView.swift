@@ -144,16 +144,30 @@ struct TravelCalendarView: View {
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
     }
 
-    /// アルバムへの入口(新しい写真を4枚だけ見せる)
+    /// 日替わりで並びを変える(同じ日のうちは同じ並び。開くたびにチラつかない)
+    private func dailyShuffled(_ items: [Attachment]) -> [Attachment] {
+        let day = cal.ordinality(of: .day, in: .era, for: Date()) ?? 0
+        // 日付と写真IDから毎回同じ値になる計算(FNV-1a)。日付が変わると並びも変わる
+        func key(_ a: Attachment) -> UInt64 {
+            var h: UInt64 = 0xcbf29ce484222325
+            for b in "\(day)-\(a.id?.uuidString ?? "")".utf8 {
+                h = (h ^ UInt64(b)) &* 0x100000001b3
+            }
+            return h
+        }
+        return items.sorted { key($0) < key($1) }
+    }
+
+    /// アルバムへの入口(日替わりで選んだ写真4枚を見せる)
     @ViewBuilder
     private var albumCard: some View {
         let photos = places.flatMap(\.photoAttachments)
-            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+        let cover = dailyShuffled(photos).prefix(4)
         if !photos.isEmpty {
             Button(action: onOpenAlbum) {
                 HStack(spacing: 12) {
                     HStack(spacing: -10) {
-                        ForEach(Array(photos.prefix(4).enumerated()), id: \.offset) { _, att in
+                        ForEach(Array(cover.enumerated()), id: \.offset) { _, att in
                             PhotoThumb(attachment: att, pixel: 120)
                                 .frame(width: 40, height: 40)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

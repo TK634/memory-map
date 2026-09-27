@@ -23,7 +23,7 @@ struct PaywallView: View {
               title: "動画も残せる",
               detail: "旅の動画を1本60秒まで。カレンダーやアルバムからすぐ再生できます。"),
         .init(icon: "person.2.fill",
-              title: "ふたり分で1つの課金",
+              title: "みんなで1つの課金",
               detail: "あなたが登録すれば、招待した家族・パートナー(最大6人)も写真を追加できます。"),
         .init(icon: "sparkles",
               title: "今後の新機能を先行提供",

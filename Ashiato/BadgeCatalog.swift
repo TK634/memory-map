@@ -19,7 +19,7 @@ enum BadgeCategory: String, CaseIterable {
     case area = "🏯 地方・名所"
     case world = "🌏 世界"
     case style = "🧳 旅のスタイル"
-    case together = "💞 ふたり・思い出"
+    case together = "💞 いっしょ・思い出"
 }
 
 /// 判定に必要な集計値
@@ -151,11 +151,11 @@ enum BadgeCatalog {
             flag("初詣", "sparkle", "1月1〜3日に記録する", .style) { $0.hasNewYear },
             flag("聖夜のおでかけ", "gift.fill", "12月24・25日に記録する", .style) { $0.hasChristmas },
 
-            // 💞 ふたり・思い出
-            count("ふたりのはじまり", "heart.circle.fill", "全員で1か所行く", .together, goal: 1, unit: "か所") { $0.togetherCount },
-            count("みんなの思い出", "heart.fill", "全員で5か所行く", .together, goal: 5, unit: "か所") { $0.togetherCount },
-            count("なかよし", "person.2.fill", "全員で10か所行く", .together, goal: 10, unit: "か所") { $0.togetherCount },
-            count("最高のパートナー", "heart.text.square.fill", "全員で30か所行く", .together, goal: 30, unit: "か所") { $0.togetherCount },
+            // 💞 いっしょ・思い出(メンバーが何人でも成り立つ言い方にする)
+            count("はじめてのいっしょ", "heart.circle.fill", "メンバー全員で1か所行く", .together, goal: 1, unit: "か所") { $0.togetherCount },
+            count("みんなの思い出", "heart.fill", "メンバー全員で5か所行く", .together, goal: 5, unit: "か所") { $0.togetherCount },
+            count("なかよし", "person.3.fill", "メンバー全員で10か所行く", .together, goal: 10, unit: "か所") { $0.togetherCount },
+            count("最高のなかま", "heart.text.square.fill", "メンバー全員で30か所行く", .together, goal: 30, unit: "か所") { $0.togetherCount },
             flag("ひとり旅", "figure.walk.circle.fill", "メンバーのひとりだけで行った場所を記録する", .together) {
                 $0.memberCount >= 2 && $0.soloCount >= 1
             },

@@ -10,6 +10,9 @@
 	<key>AshiatoCloudEnabled</key>
 	<true/>
 	<!-- 対応言語は日本語のみ。DatePicker等のシステムUIも日本語表示にする -->
+	<!-- iCloudの共有リンクを開いたとき、このアプリで受け取る -->
+	<key>CKSharingSupported</key>
+	<true/>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>ja</string>

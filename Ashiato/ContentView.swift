@@ -32,6 +32,14 @@ struct ContentView: View {
     @State private var showList = false
     @State private var showShare = false
     @State private var shareInfo: (CKShare, CKContainer)?
+    /// LINEなどで送る招待(共有シートに渡す文面)
+    struct InviteMessage: Identifiable {
+        let id = UUID()
+        let text: String
+    }
+    @State private var invite: InviteMessage?
+    @State private var isPreparingInvite = false
+    @State private var joinedMessage: String?
     @State private var shareError: String?
     /// 検索シートを開く要求。日付をシート自体に持たせて、開いた時点の値を確実に渡す
     struct AddSearchRequest: Identifiable {
@@ -234,6 +242,23 @@ struct ContentView: View {
                     latitudeDelta: 1.2, longitudeDelta: 1.2))
             }
         }
+        .sheet(item: $invite) { inv in
+            ActivityView(items: [inv.text])
+                .presentationDetents([.medium, .large])
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .didJoinSharedLog)) { _ in
+            joinedMessage = String(localized: "いっしょの地図に参加しました。これからは同じ地図に記録できます。")
+            tab = .calendar
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .shareJoinFailed)) { note in
+            shareError = (note.object as? String) ?? String(localized: "参加できませんでした。")
+        }
+        .alert("参加しました 🎉", isPresented: Binding(
+            get: { joinedMessage != nil }, set: { if !$0 { joinedMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(joinedMessage ?? "")
+        }
         .sheet(isPresented: $showShare) {
             if let info = shareInfo {
                 CloudSharingView(share: info.0, container: info.1)
@@ -282,16 +307,27 @@ struct ContentView: View {
             .background(.regularMaterial, in: Capsule())
             .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             Spacer()
+            // 招待: LINEなどで招待リンクを送る
             Button { Task { await prepareShare() } } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(AppPalette.chrome)
-                    .frame(width: 38, height: 38)
-                    .background(.regularMaterial, in: Circle())
-                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                Group {
+                    if isPreparingInvite {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(AppPalette.chrome)
+                    }
+                }
+                .frame(width: 38, height: 38)
+                .background(.regularMaterial, in: Circle())
+                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             }
+            .disabled(isPreparingInvite)
             Menu {
                 Button { showAlbum = true } label: { Label("アルバム", systemImage: "photo.on.rectangle.angled") }
+                Button { Task { await openShareManagement() } } label: {
+                    Label("共有の管理(参加者・停止)", systemImage: "person.2.badge.gearshape")
+                }
                 Button { showList = true } label: { Label("一覧", systemImage: "list.bullet") }
                 Button { showRanking = true } label: { Label("ランキング", systemImage: "trophy") }
                 Divider()
@@ -467,21 +503,39 @@ struct ContentView: View {
     }
 
     private func prepareShare() async {
+        isPreparingInvite = true
+        defer { isPreparingInvite = false }
         do {
-            shareInfo = try await PersistenceController.shared.getOrCreateShare(for: log)
-            showShare = true
+            let url = try await PersistenceController.shared.inviteURL(for: log)
+            invite = InviteMessage(text: """
+            「あしあと」でいっしょに行った場所を記録しよう!
+            このリンクを開くと、いっしょの地図に参加できます👇
+            \(url.absoluteString)
+
+            ※はじめての人は App Store で「あしあと」を入れてから、もう一度リンクを開いてね
+            """)
             // 共有する=相手の動きを知りたいタイミングなので、ここで通知許可を求める
             await NotificationManager.shared.requestAuthorization()
         } catch {
             shareError = """
-            iCloudの共有リンクを作成できませんでした。
-            共有には、iCloudにサインインした実機が必要です。\
-            (シミュレータや、開発用の署名がない状態では利用できません)
+            招待リンクを作成できませんでした。
+            iCloudにサインインしているか、通信環境を確認してください。
 
             詳細: \(error.localizedDescription)
             """
         }
     }
+
+    /// 参加者の確認・共有の停止(iCloud標準の管理画面)
+    private func openShareManagement() async {
+        do {
+            shareInfo = try await PersistenceController.shared.getOrCreateShare(for: log)
+            showShare = true
+        } catch {
+            shareError = error.localizedDescription
+        }
+    }
+
 }
 
 // MARK: - ピン表示
