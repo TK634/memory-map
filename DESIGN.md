@@ -129,8 +129,9 @@ Apple標準地図の上に、海(フラットな青)→国→都道府県の順�
 パステルカラーのポリゴンを重ねて「塗り絵」風の見た目にしている。
 
 - 形状データ: Natural Earth(パブリックドメイン、出典表記不要)
-  - 都道府県: ne_10m_admin_1_states_provinces から日本を抽出・簡略化 → `prefectures.geojson`(76KB)
-  - 国境: ne_110m_admin_0_countries から日本を除外 → `countries.geojson`(187KB)
+  - 都道府県: ne_10m_admin_1_states_provinces から日本を抽出 → `prefectures.geojson`(222KB)
+  - 国境: ne_50m_admin_0_countries から日本を除外 → `countries.geojson`(1.6MB・238か国・ISOコード付き)
+  - どちらも点を間引かない(間引くと隣の領域と境界がずれてすき間ができる)。小数3〜4桁に丸めて連続重複だけ除去
 - 読み込みは起動後にバックグラウンドで実施(MKGeoJSONDecoder)
 - 都市名などのラベルはApple地図のものがポリゴンの上に表示される
 

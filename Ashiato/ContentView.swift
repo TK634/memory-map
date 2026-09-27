@@ -116,8 +116,12 @@ struct ContentView: View {
             // 県・国の境界データは起動時に読み込む(バックグラウンドで、起動をブロックしない)。
             // マップタブを開かなくても制県レベル・国の数・バッジが正しく出るように
             if countryRegions.isEmpty {
+                let started = Date()
                 let countries = await Task.detached { GeoData.load("countries") }.value
                 let prefs = await Task.detached { GeoData.load("prefectures") }.value
+                #if DEBUG
+                print("[地図検証] 境界データの読み込み: \(String(format: "%.2f", Date().timeIntervalSince(started)))秒 国\(countries.count) 県\(prefs.count)")
+                #endif
                 countryRegions = countries
                 prefRegions = prefs
             }
@@ -160,6 +164,11 @@ struct ContentView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showAlbum = true }
             }
             if ProcessInfo.processInfo.arguments.contains("-openMap") { tab = .map }
+            if ProcessInfo.processInfo.arguments.contains("-mapZoomEurope") {
+                tab = .map
+                camera = .region(MKCoordinateRegion(center: .init(latitude: 46, longitude: 12),
+                                                    latitudeDelta: 22, longitudeDelta: 22))
+            }
             if ProcessInfo.processInfo.arguments.contains("-mapZoomKanto") {
                 tab = .map
                 camera = .region(MKCoordinateRegion(center: .init(latitude: 35.45, longitude: 139.45),
