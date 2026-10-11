@@ -22,6 +22,8 @@ enum StoreScreenshotSeeder {
             return m
         }
         let taka = member("タカ", "E8963E").id!
+        // 撮影時に「あなたはどの人?」が出ないよう、このiPhoneの「自分」をタカにする
+        UserDefaults.standard.set(taka.uuidString, forKey: "myMemberID")
         let hana = member("ハナ", "5A8FD8").id!
         let both = [taka, hana]
 
