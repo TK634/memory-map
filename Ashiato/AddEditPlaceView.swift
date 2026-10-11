@@ -2,6 +2,7 @@ import SwiftUI
 import CoreData
 import CoreLocation
 import PhotosUI
+import ImageIO
 import MapKit
 
 struct AddEditPlaceView: View {
@@ -32,6 +33,7 @@ struct AddEditPlaceView: View {
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var pendingImages: [Data] = []      // 圧縮済み。保存時に Attachment 化(動画は表紙画像)
     @State private var pendingVideos: [Data?] = []     // pendingImages と同じ並び。動画なら本体、写真なら nil
+    @State private var pendingThumbs: [UIImage] = []   // pendingImages と同じ並び。一覧表示用の縮小版
     @State private var playingVideo: VideoItem?
     @State private var pendingComments: [String] = []  // 追加予定コメント
     @State private var newComment = ""
@@ -63,7 +65,7 @@ struct AddEditPlaceView: View {
     /// あと何枚追加できるか(無制限なら nil)。無料は1か所 freePhotosPerPlace 枚まで
     private var remainingPhotoSlots: Int? {
         hasUnlimitedPhotos ? nil
-            : max(0, PremiumPolicy.freePhotosPerPlace - allPhotoImages.count)
+            : max(0, PremiumPolicy.freePhotosPerPlace - photoCount)
     }
     private var canAddMorePhotos: Bool { remainingPhotoSlots.map { $0 > 0 } ?? true }
     /// プレミアムは動画も選べる
@@ -514,6 +516,7 @@ struct AddEditPlaceView: View {
         if index < pendingImages.count {
             pendingImages.remove(at: index)
             if index < pendingVideos.count { pendingVideos.remove(at: index) }
+            if index < pendingThumbs.count { pendingThumbs.remove(at: index) }
         } else {
             let i = index - pendingImages.count
             guard i < existingPhotos.count else { return }
@@ -644,13 +647,13 @@ struct AddEditPlaceView: View {
                         .foregroundStyle(AppPalette.accent)
                 }
                 if hasUnlimitedPhotos {
-                    if !allPhotoImages.isEmpty {
-                        Text("\(allPhotoImages.count)枚")
+                    if photoCount > 0 {
+                        Text("\(photoCount)枚")
                             .font(.caption.bold()).foregroundStyle(.secondary)
                     }
                 } else {
                     // 無料は何枚まで使ったか
-                    Text("\(allPhotoImages.count)/\(PremiumPolicy.freePhotosPerPlace)枚")
+                    Text("\(photoCount)/\(PremiumPolicy.freePhotosPerPlace)枚")
                         .font(.caption.bold())
                         .foregroundStyle(canAddMorePhotos ? Color.secondary : AppPalette.accent)
                 }
@@ -667,7 +670,7 @@ struct AddEditPlaceView: View {
                 .background(Color(hex: "FFF6EA"), in: RoundedRectangle(cornerRadius: 16))
             }
 
-            if allPhotoImages.isEmpty && importingCount == 0 {
+            if photoCount == 0 && importingCount == 0 {
                 PhotosPicker(selection: $photoItems, maxSelectionCount: pickerLimit, matching: pickerFilter) {
                     VStack(spacing: 8) {
                         Image(systemName: "camera.fill")
@@ -740,7 +743,7 @@ struct AddEditPlaceView: View {
     /// SNS風の写真グリッド。1枚なら大きく、複数なら2列
     @ViewBuilder
     private var photoGrid: some View {
-        let images = allPhotoImages
+        let images = gridImages
         if images.count == 1 {
             photoTile(images[0], index: 0, height: 240)
         } else {
@@ -846,7 +849,18 @@ struct AddEditPlaceView: View {
         return existingPhotos[i].authorName
     }
 
-    /// 追加予定+保存済みの全写真
+    /// 追加予定+保存済みの写真の枚数(画像は読み込まない)
+    private var photoCount: Int { pendingImages.count + existingPhotos.count }
+
+    /// 一覧用の縮小版(保存済みはキャッシュ済みの縮小版を使う)。
+    /// 以前は描画のたびに全写真を元サイズで読み込み直していて、写真を追加すると重かった
+    private var gridImages: [UIImage] {
+        let blank = UIImage(systemName: "photo") ?? UIImage()
+        let pending = pendingImages.indices.map { $0 < pendingThumbs.count ? pendingThumbs[$0] : blank }
+        return pending + existingPhotos.map { ThumbnailCache.shared.thumbnail(for: $0, pixel: 480) ?? blank }
+    }
+
+    /// 追加予定+保存済みの全写真(元サイズ。拡大表示のときだけ使う)
     private var allPhotoImages: [UIImage] {
         // compactMap で落とすと表示と通し番号がずれ、別の写真を消してしまうため、失敗時も枠は残す
         let blank = UIImage(systemName: "photo") ?? UIImage()
@@ -893,8 +907,10 @@ struct AddEditPlaceView: View {
             picked = Array(picked.prefix(slots))
             showPaywall = true
         }
+        let thumbs = await Self.thumbnails(of: picked.map(\.1))
         pendingImages.append(contentsOf: picked.map(\.1))
         pendingVideos.append(contentsOf: picked.map(\.2))
+        pendingThumbs.append(contentsOf: thumbs)
         importedCount = 0
         // 既存の記録なら選んだ時点で保存(保存ボタンを押さなくても反映される)
         if place != nil { commitPendingAttachments() }
@@ -918,14 +934,37 @@ struct AddEditPlaceView: View {
         pendingComments.removeAll()
         pendingImages.removeAll()
         pendingVideos.removeAll()
+        pendingThumbs.removeAll()
         try? context.save()
     }
 
     /// バックグラウンドで画像を圧縮する
     private static func compress(_ data: Data) async -> Data? {
         await Task.detached(priority: .userInitiated) {
-            UIImage(data: data)?.compressedJPEGData()
+            // 元画像を丸ごとデコードせず、ImageIO で長辺2000pxに直接縮小する(速く、メモリも少ない)
+            downsample(data, maxPixel: 2000)?.jpegData(compressionQuality: 0.7)
+                ?? UIImage(data: data)?.compressedJPEGData()
         }.value
+    }
+
+    /// 一覧用の縮小版をまとめて作る(バックグラウンド)
+    private static func thumbnails(of images: [Data]) async -> [UIImage] {
+        await Task.detached(priority: .userInitiated) {
+            let blank = UIImage(systemName: "photo") ?? UIImage()
+            return images.map { downsample($0, maxPixel: 480) ?? blank }
+        }.value
+    }
+
+    /// 画像データを長辺 maxPixel に縮小する(向きも反映)
+    nonisolated private static func downsample(_ data: Data, maxPixel: CGFloat) -> UIImage? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let opts: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg)
     }
 
     // MARK: - 読み込み / 保存
