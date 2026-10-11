@@ -219,6 +219,7 @@ struct ReactionBar: View {
                 r.createdAt = Date()
                 r.authorName = myName
                 r.place = place
+                context.assign([r], toStoreOf: place)
                 rememberStamp(emoji)
                 // 追加時だけ浮き上がる演出
                 floatID = UUID()

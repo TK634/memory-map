@@ -33,6 +33,17 @@ struct ContentView: View {
     @State private var showMembers = false
     @State private var showRanking = false
     @State private var showPaywall = false
+    @State private var showTrips = false
+    /// カレンダーで期間を選んで作った旅(作った直後に開く)
+    @State private var openedTrip: Trip?
+    /// カレンダーで選んだ旅の期間(名前とメンバーを決める画面を開く)
+    struct TripRange: Identifiable {
+        let id = UUID()
+        let start: Date
+        let end: Date
+    }
+    @State private var newTripRange: TripRange?
+    @State private var createdTrip: Trip?
     @State private var showManageSubscription = false
     @State private var showList = false
     @State private var showShare = false
@@ -63,6 +74,9 @@ struct ContentView: View {
     enum MainTab { case calendar, map }
     @State private var tab: MainTab = .calendar
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @AppStorage("myMemberID") private var myMemberID = ""
+    @State private var showWhoAmI = false
+    @State private var hasSeenWhoAmIPromptThisLaunch = false
     @AppStorage("memoryCardDismissedDate") private var memoryCardDismissedDate = ""
 
     /// 「1年前の今日」の思い出
@@ -87,6 +101,11 @@ struct ContentView: View {
     }
 
     private var log: TravelLog { PersistenceController.shared.fetchOrCreateLog(in: context) }
+    /// メンバーが2人以上なのに、このiPhoneの「自分」が未設定(または削除済み)
+    private var needsWhoAmI: Bool {
+        members.count >= 2 && !members.contains { $0.id?.uuidString == myMemberID }
+    }
+    private var whoAmIKey: String { "\(members.count)-\(myMemberID)-\(showOnboarding)" }
     private var members: [Member] { Array(allMembers) }
     private var filtered: [Place] { allPlaces.filter { filter.matches($0, members: members) } }
     private var years: [Int] {
@@ -104,9 +123,12 @@ struct ContentView: View {
                                    onAddOnDate: { d in
                                        addSearch = AddSearchRequest(date: d)
                                    },
-                                   onOpenAlbum: { showAlbum = true }) { p in
-                    editingPlace = p
-                }
+                                   onOpenAlbum: { showAlbum = true },
+                                   onSelectPlace: { p in editingPlace = p },
+                                   onCreateTrip: { s, e in
+                                       newTripRange = TripRange(start: s, end: e)
+                                   },
+                                   onOpenTrip: { t in openedTrip = t })
                 .ignoresSafeArea(edges: .bottom)
             }
             VStack(spacing: 8) {
@@ -169,6 +191,17 @@ struct ContentView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showAlbum = true }
             }
             if ProcessInfo.processInfo.arguments.contains("-openMap") { tab = .map }
+            if ProcessInfo.processInfo.arguments.contains("-openTrip") {
+                // 旅の画面の確認用: 最初の旅を開く
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    showOnboarding = false
+                    let req = NSFetchRequest<Trip>(entityName: "Trip")
+                    openedTrip = (try? context.fetch(req))?.first
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-openTrips") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showTrips = true }
+            }
             if ProcessInfo.processInfo.arguments.contains("-openPaywall") {
                 // 審査用スクリーンショット(サブスクの画面)の撮影用
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showPaywall = true }
@@ -278,6 +311,32 @@ struct ContentView: View {
                              prefRegions: prefRegions, countryRegions: countryRegions)
         }
         .sheet(isPresented: $showPaywall) { PaywallView() }
+        .sheet(isPresented: $showWhoAmI) { WhoAmISheet(members: members.map { $0 }) }
+        // メンバーが2人以上(共有に参加した直後など)で「自分」が未設定なら聞く
+        .task(id: whoAmIKey) {
+            try? await Task.sleep(for: .seconds(1.2))
+            if needsWhoAmI && !showOnboarding && !hasSeenWhoAmIPromptThisLaunch {
+                hasSeenWhoAmIPromptThisLaunch = true
+                showWhoAmI = true
+            }
+        }
+        .sheet(isPresented: $showTrips) { TripListView(log: log, members: members) }
+        .sheet(item: $newTripRange, onDismiss: {
+            // 作った旅は、確認画面を閉じてから開く
+            if let t = createdTrip {
+                createdTrip = nil
+                openedTrip = t
+            }
+        }) { r in
+            NewTripSheet(members: members, initialStart: r.start, initialEnd: r.end) { s, e, name, ids in
+                createdTrip = Trip.make(in: context, log: log, start: s, end: e, name: name, memberIDs: ids)
+            }
+        }
+        .sheet(item: $openedTrip) { t in
+            NavigationStack {
+                TripDetailView(trip: t, log: log, members: members, showsCloseButton: true)
+            }
+        }
         .manageSubscriptionsSheet(isPresented: $showManageSubscription)
         .sheet(isPresented: $showRanking) {
             RankingView(places: allPlaces.map { $0 }, members: members, filter: filter)
@@ -374,6 +433,7 @@ struct ContentView: View {
             .disabled(isPreparingInvite)
             Menu {
                 Button { showAlbum = true } label: { Label("アルバム", systemImage: "photo.on.rectangle.angled") }
+                Button { showTrips = true } label: { Label("旅", systemImage: "suitcase.fill") }
                 Button { Task { await openShareManagement() } } label: {
                     Label("共有の管理(参加者・停止)", systemImage: "person.2.badge.gearshape")
                 }

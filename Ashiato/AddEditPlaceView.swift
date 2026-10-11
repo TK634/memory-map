@@ -17,6 +17,7 @@ struct AddEditPlaceView: View {
     var initialName: String = ""   // 検索候補から引き継ぐ場所名
     var initialDate: Date? = nil     // カレンダーで選んだ日
     var initialEndDate: Date? = nil  // 泊まりの予定から来たときの最終日
+    var trip: Trip? = nil            // 旅の画面から追加したとき、その旅の最後に入れる
 
     @State private var name = ""
     @State private var isJapan = true
@@ -924,11 +925,13 @@ struct AddEditPlaceView: View {
             let att = Attachment(context: context)
             att.id = UUID(); att.createdAt = now
             att.comment = text; att.authorName = myMemberName; att.place = p
+            context.assign([att], toStoreOf: p)
         }
         for (i, data) in pendingImages.enumerated() {
             let att = Attachment(context: context)
             att.id = UUID(); att.createdAt = now
             att.imageData = data; att.authorName = myMemberName; att.place = p
+            context.assign([att], toStoreOf: p)
             if i < pendingVideos.count, let v = pendingVideos[i] { att.videoData = v; att.isVideo = true }
         }
         pendingComments.removeAll()
@@ -993,6 +996,11 @@ struct AddEditPlaceView: View {
             } else if members.count == 1, let id = members[0].id {
                 selectedIDs = [id]
             }
+            // 旅の画面から追加したときは、その旅のメンバーを初期値にする
+            if let trip {
+                let tripMembers = Set(trip.memberIDList).intersection(validIDs)
+                if !tripMembers.isEmpty { selectedIDs = tripMembers }
+            }
             // 検索候補から来た場合はその名前を優先
             if !initialName.isEmpty { name = initialName }
             // カレンダーで選んだ日を「行った日」に
@@ -1025,6 +1033,7 @@ struct AddEditPlaceView: View {
             p.latitude = coordinate.latitude
             p.longitude = coordinate.longitude
             p.log = log
+            context.assign([p], toStoreOf: log)
         }
         p.name = name.trimmingCharacters(in: .whitespaces)
         p.isJapan = isJapan
@@ -1033,6 +1042,12 @@ struct AddEditPlaceView: View {
         p.visitDate = hasDate ? visitDate : nil
         p.visitEndDate = (hasDate && hasEndDate) ? visitEndDate : nil
         p.visitorIDList = Array(selectedIDs)
+        // 旅の画面から追加した場所は、その日の最後に入れる
+        if place == nil, let trip, p.trip == nil {
+            p.tripOrder = trip.nextOrder(on: trip.day(of: p))
+            p.trip = trip
+        }
+        if place == nil, trip == nil { Trip.autoJoin(p, in: context) }
         // 次回の初期選択用に記憶(新規登録時のみ)
         if place == nil {
             UserDefaults.standard.set(selectedIDs.map(\.uuidString), forKey: "lastVisitorIDs")
@@ -1047,6 +1062,7 @@ struct AddEditPlaceView: View {
             att.comment = text
             att.authorName = myMemberName
             att.place = p
+            context.assign([att], toStoreOf: p)
         }
         // 入力欄に残っている未追加のコメントも保存
         let leftover = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1057,6 +1073,7 @@ struct AddEditPlaceView: View {
             att.comment = leftover
             att.authorName = myMemberName
             att.place = p
+            context.assign([att], toStoreOf: p)
         }
         // 写真(無料は1か所3枚まで。取り込み時に上限内に絞ってある)
         for (i, data) in pendingImages.enumerated() {
@@ -1066,6 +1083,7 @@ struct AddEditPlaceView: View {
             att.imageData = data
             att.authorName = myMemberName
             att.place = p
+            context.assign([att], toStoreOf: p)
             if i < pendingVideos.count, let v = pendingVideos[i] { att.videoData = v; att.isVideo = true }
         }
 

@@ -62,9 +62,10 @@ enum StoreScreenshotSeeder {
         ]
 
         var order = 0.0
-        for r in rows {
+        for (n, r) in rows.enumerated() {
             let p = Place(context: context)
-            p.id = UUID(); p.createdAt = r.4; p.log = log
+            // 同じ日の中の順番が保てるよう、登録時刻を少しずつずらす
+            p.id = UUID(); p.createdAt = r.4.addingTimeInterval(Double(n)); p.log = log
             p.name = r.0; p.latitude = r.1; p.longitude = r.2; p.isJapan = r.3
             p.year = Int16(Calendar.current.component(.year, from: r.4))
             p.visitDate = r.4; p.visitEndDate = r.5
@@ -88,6 +89,9 @@ enum StoreScreenshotSeeder {
             }
         }
         try? context.save()
+        // 期間内の5か所を、行った順の旅にまとめる
+        Trip.make(in: context, log: log, start: day(2026, 10, 3), end: day(2026, 10, 5),
+                  name: "立山・上高地の旅", memberIDs: both)
     }
 }
 #endif

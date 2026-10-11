@@ -63,24 +63,13 @@ struct PhotoThumb: View {
 
 // MARK: - アルバム
 
-/// すべての写真を、行った月ごとに並べて見返す画面
+/// 写真を、行った場所ごとのアルバムにまとめて見返す画面
 struct AlbumView: View {
     @Environment(\.dismiss) private var dismiss
     let places: [Place]
     let members: [Member]
     /// 写真の場所を開く
     var onOpenPlace: (Place) -> Void
-
-    @State private var viewer: AlbumViewerTarget?
-
-    /// 検証用: 起動引数 -scrollBottom で下端から表示(DEBUGのみ)
-    private var startsAtBottom: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-scrollBottom")
-        #else
-        false
-        #endif
-    }
 
     struct Item: Identifiable {
         let att: Attachment
@@ -92,92 +81,153 @@ struct AlbumView: View {
         var id: Int { index }
     }
 
-    /// 写真を行った日の新しい順に並べる
-    private var items: [Item] {
-        places.flatMap { p in p.photoAttachments.map { Item(att: $0, place: p) } }
-            .sorted { a, b in
-                let da = a.place.visitDate ?? a.att.createdAt ?? .distantPast
-                let db = b.place.visitDate ?? b.att.createdAt ?? .distantPast
-                return da > db
-            }
-    }
-
-    /// 月ごとの見出しでまとめる
-    private var sections: [(title: String, items: [(Int, Item)])] {
-        var result: [(String, [(Int, Item)])] = []
-        for (i, item) in items.enumerated() {
-            let d = item.place.visitDate ?? item.att.createdAt ?? Date()
-            let title = d.formatted(.dateTime.year().month(.wide).locale(AppRegion.preferredLocale))
-            if result.last?.0 == title {
-                result[result.count - 1].1.append((i, item))
-            } else {
-                result.append((title, [(i, item)]))
-            }
-        }
-        return result
+    /// 写真のある場所(行った日の新しい順)
+    private var albums: [Place] {
+        places.filter { !$0.photoAttachments.isEmpty }
+            .sorted { ($0.visitDate ?? $0.createdAt ?? .distantPast) > ($1.visitDate ?? $1.createdAt ?? .distantPast) }
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 AppStyle.background
-                if items.isEmpty {
+                let list = albums
+                if list.isEmpty {
                     VStack(spacing: 12) {
                         Text("📸").font(.system(size: 48))
                         Text("まだ写真がありません")
                             .font(.system(size: 17, weight: .heavy, design: .rounded))
                             .foregroundStyle(AppPalette.chrome)
-                        Text("記録画面から写真を追加すると、ここに集まります。")
+                        Text("記録画面から写真を追加すると、行った場所ごとのアルバムになります。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 20) {
-                            ForEach(sections, id: \.title) { sec in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(sec.title)
-                                        .font(.system(size: 15, weight: .heavy, design: .rounded))
-                                        .foregroundStyle(AppPalette.chrome)
-                                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3),
-                                              spacing: 3) {
-                                        ForEach(sec.items, id: \.1.id) { index, item in
-                                            Button { viewer = AlbumViewerTarget(index: index) } label: {
-                                                Color.clear
-                                                    .aspectRatio(1, contentMode: .fit)
-                                                    .overlay(PhotoThumb(attachment: item.att, pixel: 300))
-                                                    .clipped()
-                                                    .overlay { if item.att.isVideo { PlayBadge(size: 28) } }
-                                                    .overlay(alignment: .bottomLeading) {
-                                                        Text(item.place.name ?? "")
-                                                            .font(.system(size: 10, weight: .bold))
-                                                            .foregroundStyle(.white)
-                                                            .lineLimit(1)
-                                                            .padding(5)
-                                                            .shadow(color: .black.opacity(0.6), radius: 2)
-                                                    }
-                                            }
-                                            .buttonStyle(PressableStyle())
-                                        }
-                                    }
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                                  spacing: 14) {
+                            ForEach(list, id: \.objectID) { p in
+                                NavigationLink {
+                                    PlaceAlbumView(place: p, openPlace: openPlace)
+                                } label: {
+                                    AlbumCard(place: p)
                                 }
+                                .buttonStyle(PressableStyle())
                             }
                         }
                         .padding(.horizontal, 16)
+                        .padding(.top, 8)
                         .padding(.bottom, 30)
                     }
-                    .defaultScrollAnchor(startsAtBottom ? .bottom : .top)
                 }
             }
             .navigationTitle("アルバム")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("閉じる") { dismiss() } } }
-            .fullScreenCover(item: $viewer) { t in
-                AlbumPhotoViewer(items: items, index: t.index) { place in
-                    viewer = nil
-                    dismiss()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { onOpenPlace(place) }
+        }
+    }
+
+    /// アルバムを閉じてから、その場所の記録画面を開く
+    private func openPlace(_ p: Place) {
+        dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { onOpenPlace(p) }
+    }
+}
+
+/// アルバム一覧の1枚(表紙・場所名・日付・枚数)
+private struct AlbumCard: View {
+    let place: Place
+
+    var body: some View {
+        let photos = place.photoAttachments
+        VStack(alignment: .leading, spacing: 6) {
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    if let cover = photos.first { PhotoThumb(attachment: cover, pixel: 400) }
                 }
+                .clipped()
+                .overlay(alignment: .topTrailing) {
+                    Label("\(photos.count)", systemImage: "photo.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(.black.opacity(0.45), in: Capsule())
+                        .padding(7)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(place.name ?? "")
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .foregroundStyle(AppPalette.chrome)
+                    .lineLimit(1)
+                if let d = place.visitDate {
+                    Text(d.jaDateText)
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+}
+
+/// 1か所のアルバム(その場所の写真を一覧で)
+private struct PlaceAlbumView: View {
+    @ObservedObject var place: Place
+    var openPlace: (Place) -> Void
+    @State private var viewer: AlbumView.AlbumViewerTarget?
+
+    /// 古い順(旅の流れで見返せるように)
+    private var items: [AlbumView.Item] {
+        place.photoAttachments.reversed().map { AlbumView.Item(att: $0, place: place) }
+    }
+
+    var body: some View {
+        let list = items
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    if let d = place.visitDate {
+                        Label(d.jaDateText, systemImage: "calendar")
+                    }
+                    if let t = place.trip {
+                        Label(t.displayName, systemImage: "suitcase.fill")
+                    }
+                    Spacer()
+                    Text("\(list.count)枚")
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3), spacing: 3) {
+                    ForEach(Array(list.enumerated()), id: \.element.id) { i, item in
+                        Button { viewer = AlbumView.AlbumViewerTarget(index: i) } label: {
+                            Color.clear
+                                .aspectRatio(1, contentMode: .fit)
+                                .overlay(PhotoThumb(attachment: item.att, pixel: 300))
+                                .clipped()
+                                .overlay { if item.att.isVideo { PlayBadge(size: 28) } }
+                        }
+                        .buttonStyle(PressableStyle())
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .background(AppStyle.background)
+        .navigationTitle(place.name ?? "")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("記録を開く") { openPlace(place) }
+            }
+        }
+        .fullScreenCover(item: $viewer) { t in
+            AlbumPhotoViewer(items: list, index: t.index) { p in
+                viewer = nil
+                openPlace(p)
             }
         }
     }

@@ -20,7 +20,7 @@ struct MembersView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section(footer: Text("名前をタップして編集。右の丸をタップすると「自分」を設定でき、リアクションの署名に使われます。")) {
+                Section(footer: Text("名前をタップして編集。右の人のマークで「自分」を選びます。写真・ひとこと・リアクションは「自分」の名前で残ります(この設定はこのiPhoneだけのものです)。")) {
                     ForEach(members, id: \.objectID) { m in
                         HStack {
                             MemberRow(member: m)
@@ -42,6 +42,11 @@ struct MembersView: View {
                                 let req = NSFetchRequest<Place>(entityName: "Place")
                                 let all = (try? context.fetch(req)) ?? []
                                 all.forEach { p in p.visitorIDList.removeAll { $0 == id } }
+                                // 旅のメンバーからも外す
+                                let tripReq = NSFetchRequest<Trip>(entityName: "Trip")
+                                ((try? context.fetch(tripReq)) ?? []).forEach { t in
+                                    t.memberIDList.removeAll { $0 == id }
+                                }
                             }
                             context.delete(m)
                         }
@@ -61,6 +66,7 @@ struct MembersView: View {
                     m.colorHex = AppPalette.memberColors.first { !used.contains($0) }
                         ?? AppPalette.memberColors[members.count % AppPalette.memberColors.count]
                     m.log = log
+                    context.assign([m], toStoreOf: log)
                     try? context.save()
                 } label: {
                     Label("メンバーを追加", systemImage: "plus")
@@ -251,4 +257,48 @@ struct CloudSharingView: UIViewControllerRepresentable {
         return vc
     }
     func updateUIViewController(_ vc: UICloudSharingController, context: Context) {}
+}
+
+
+// MARK: - 自分はだれ?
+
+/// 共有などでメンバーが2人以上いるのに「自分」が未設定のときに聞く。
+/// 未設定だと全員が先頭のメンバー扱いになり、写真・ひとことの名義がずれ、
+/// 他の人のリアクションを自分のものとして取り消してしまっていた。
+struct WhoAmISheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let members: [Member]
+    @AppStorage("myMemberID") private var myMemberID = ""
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(members, id: \.objectID) { m in
+                        Button {
+                            myMemberID = m.id?.uuidString ?? ""
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Circle().fill(m.color).frame(width: 14, height: 14)
+                                Text(m.displayName).font(.body.bold()).foregroundStyle(.primary)
+                                Spacer()
+                                if myMemberID == m.id?.uuidString {
+                                    Image(systemName: "checkmark").foregroundStyle(AppPalette.accent)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("このiPhoneを使っているのは?")
+                } footer: {
+                    Text("写真・ひとこと・リアクションに、選んだ人の名前が付きます。あとから「メンバー」画面で変えられます。")
+                }
+            }
+            .navigationTitle("あなたはどの人?")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium])
+        .interactiveDismissDisabled()
+    }
 }

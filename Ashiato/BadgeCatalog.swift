@@ -1,4 +1,5 @@
 import Foundation
+import CoreData
 
 /// バッジの定義と解放判定。実績画面と祝福演出の両方から使う
 struct BadgeDef: Identifiable {
@@ -215,12 +216,19 @@ enum BadgeCatalog {
         }
 
         var longTrips = 0, maxNights = 0
+        // 旅(期間つき)は旅としての泊数で数える
+        let trips = Set(places.compactMap(\.trip)).filter { !$0.isDeleted }
+        for t in trips {
+            if t.nights >= 2 { longTrips += 1 }
+            maxNights = max(maxNights, t.nights)
+        }
         for p in places {
             guard let s = p.visitDate, let e = p.visitEndDate else { continue }
             let n = cal.dateComponents([.day], from: cal.startOfDay(for: s),
                                        to: cal.startOfDay(for: e)).day ?? 0
-            if n >= 2 { longTrips += 1 }
             maxNights = max(maxNights, n)
+            // 2泊以上の旅に入っている泊まりは、旅の方で数えたので二重に数えない
+            if n >= 2, (p.trip?.nights ?? 0) < 2 { longTrips += 1 }
         }
 
         return BadgeStats(

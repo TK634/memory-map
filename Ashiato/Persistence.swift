@@ -69,6 +69,8 @@ final class PersistenceController {
         }
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        // このiPhoneでの書き込みに印を付ける(通知で「他から届いた変更」だけを拾うため)
+        container.viewContext.transactionAuthor = NotificationManager.appAuthor
 
         #if DEBUG
         // 開発専用: 起動引数 -initCloudKitSchema で、全エンティティ・全項目を CloudKit の
@@ -169,5 +171,33 @@ final class PersistenceController {
         let (_, share, _) = try await container.share([log], to: nil)
         share[CKShare.SystemFieldKey.title] = "あしあと" as CKRecordValue
         return (share, ckContainer)
+    }
+}
+
+// MARK: - 保存先(ストア)の指定
+
+extension NSManagedObjectContext {
+    /// 新しく作ったオブジェクトを、親(記録帳・場所・旅)と同じストアに入れる。
+    /// 共有に参加した側では記録帳が「共有ストア」にあるため、指定しないと新しいオブジェクトが
+    /// 自分のプライベートストアに入り、ストアをまたぐ関連になって保存が失敗していた(以後の保存もすべて失敗)。
+    func assign(_ objects: [NSManagedObject], toStoreOf parent: NSManagedObject?) {
+        guard let store = Self.store(of: parent) else { return }
+        for o in objects where o.objectID.isTemporaryID {
+            assign(o, to: store)
+        }
+    }
+
+    /// オブジェクトが入っている(入る予定の)ストア。未保存なら親をたどって決める
+    static func store(of obj: NSManagedObject?) -> NSPersistentStore? {
+        guard let obj else { return nil }
+        if !obj.objectID.isTemporaryID, let s = obj.objectID.persistentStore { return s }
+        switch obj {
+        case let p as Place: return store(of: p.log)
+        case let a as Attachment: return store(of: a.place)
+        case let r as Reaction: return store(of: r.place)
+        case let m as Member: return store(of: m.log)
+        case let t as Trip: return store(of: t.log)
+        default: return obj.objectID.persistentStore
+        }
     }
 }
