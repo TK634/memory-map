@@ -169,6 +169,10 @@ struct ContentView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showAlbum = true }
             }
             if ProcessInfo.processInfo.arguments.contains("-openMap") { tab = .map }
+            if ProcessInfo.processInfo.arguments.contains("-openPaywall") {
+                // 審査用スクリーンショット(サブスクの画面)の撮影用
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showOnboarding = false; showPaywall = true }
+            }
             if ProcessInfo.processInfo.arguments.contains("-mapZoomEurope") {
                 tab = .map
                 camera = .region(MKCoordinateRegion(center: .init(latitude: 46, longitude: 12),
