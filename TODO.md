@@ -17,7 +17,7 @@ iPhoneアプリ「あしあと」をApp Storeでリリースするまでのタ�
 - [x] 審査に提出(グループ・サブスク・アプリの3点を同じ提出物で。どれか欠けると「審査へ提出できません」になる)
 - [ ] 次のバージョンで: iMessageアプリ欄に誤って入れたスクリーンショット5枚を削除(本体用はメディアマネージャー > iPhone > Dynamic Island中型)
 - [ ] 承認後、手動でリリース(「手動でリリースする」を選択済み)
-- [ ] App Store Small Business Program に申請(手数料30%→15%)
+- [x] App Store Small Business Program に申請(2026-10-12。承認メール待ち。承認月の翌月から手数料15%)
 
 入力内容と各画面への直接リンクは appstore/connect-inputs.md 。
 
