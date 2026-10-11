@@ -2,29 +2,26 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
-	<!-- iCloud同期の有効/無効。entitlementsとセットで切り替えること -->
 	<key>AshiatoCloudEnabled</key>
 	<true/>
-	<!-- 対応言語は日本語のみ。DatePicker等のシステムUIも日本語表示にする -->
-	<!-- iCloudの共有リンクを開いたとき、このアプリで受け取る -->
-	<key>CKSharingSupported</key>
+	<key>CFBundleAllowMixedLocalizations</key>
 	<true/>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>ja</string>
 		<string>en</string>
 	</array>
-	<key>CFBundleAllowMixedLocalizations</key>
+	<key>CKSharingSupported</key>
 	<true/>
-	<!-- 「いまここを記録」で近くのお店・公園を探すためだけに使用。追跡はしない -->
-	<!-- カレンダー連携(予定の取り込みと、行った場所の書き出し) -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>カレンダーの予定から行った場所を記録したり、行った場所を「あしあと」カレンダーに書き出したりするために使います。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>「いまここを記録」で、近くのお店や公園をすぐ選べるようにするために使います。現在地を保存したり送信したりはしません。</string>
+	<string>「いまここを記録」で、近くのお店や公園をすぐ選べるようにするために使います。現在地を保存したり、開発者に送信したりはしません。</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

@@ -138,6 +138,12 @@ struct PaywallView: View {
         VStack(spacing: 6) {
             Text("いつでも解約できます。無料トライアル終了の24時間前までに解約すると課金されません。")
             Text("お支払いはApple IDに請求され、解約しない限り自動更新されます。")
+            // サブスクは利用規約・プライバシーポリシーへのリンクが審査で必須(App Store審査ガイドライン 3.1.2)
+            HStack(spacing: 12) {
+                Link("利用規約", destination: AppLinks.termsOfUse)
+                Link("プライバシーポリシー", destination: AppLinks.privacyPolicy)
+            }
+            .padding(.top, 2)
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
