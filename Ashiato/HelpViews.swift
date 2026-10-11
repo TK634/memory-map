@@ -199,8 +199,8 @@ struct HelpView: View {
                     helpRow("rosette", "実績", "制県レベル(47都道府県)・訪問国数・バッジ。記録するほど増えていきます。")
                 }
                 Section("共有") {
-                    helpRow("person.2", "メンバー登録", "人型ボタンから追加。名前と色を設定できます。")
-                    helpRow("square.and.arrow.up", "iCloudで共有", "右上の共有ボタンから招待リンクを送信。相手も同じ地図を編集できます。")
+                    helpRow("person.2", "メンバー登録", "下のバーの「メンバー」から追加。名前と色を設定できます。")
+                    helpRow("person.badge.plus", "iCloudで共有", "右上の人型(+)ボタンから招待リンクを送信。相手も同じ地図を編集できます。")
                 }
                 #if DEBUG
                 Section(header: Text("開発用"),
@@ -211,6 +211,18 @@ struct HelpView: View {
                     .onChange(of: debugPremium) { _, on in store.setDebugPremium(on) }
                 }
                 #endif
+                Section("サポート") {
+                    Link(destination: AppLinks.support) {
+                        Label("お問い合わせ・よくある質問", systemImage: "envelope")
+                    }
+                    Link(destination: AppLinks.privacyPolicy) {
+                        Label("プライバシーポリシー", systemImage: "hand.raised")
+                    }
+                    Link(destination: AppLinks.termsOfUse) {
+                        Label("利用規約", systemImage: "doc.text")
+                    }
+                }
+                .foregroundStyle(AppPalette.chrome)
                 if let onReplayTutorial {
                     Section {
                         Button {

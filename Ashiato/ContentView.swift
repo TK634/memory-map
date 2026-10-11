@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 import MapKit
 import CoreData
 import CloudKit
@@ -14,8 +15,9 @@ struct ContentView: View {
 
     @State private var filter = PlaceFilter()
     @State private var camera: MapCameraPosition = .region(
-        MKCoordinateRegion(center: .init(latitude: 36.2, longitude: 138.2),
-                           latitudeDelta: 12, longitudeDelta: 12)
+        // 北海道(札幌)のピンが上部の絞り込みボタンに隠れず、九州まで収まる範囲
+        MKCoordinateRegion(center: .init(latitude: 37.6, longitude: 138.2),
+                           latitudeDelta: 13, longitudeDelta: 13)
         .toRegion()
     )
     /// 登録待ちの場所(検索候補で確定した名前と座標をセットで持つ)
@@ -30,6 +32,8 @@ struct ContentView: View {
     @State private var editingPlace: Place?
     @State private var showMembers = false
     @State private var showRanking = false
+    @State private var showPaywall = false
+    @State private var showManageSubscription = false
     @State private var showList = false
     @State private var showShare = false
     @State private var shareInfo: (CKShare, CKContainer)?
@@ -266,6 +270,8 @@ struct ContentView: View {
             AchievementsView(places: allPlaces.map { $0 }, members: members,
                              prefRegions: prefRegions, countryRegions: countryRegions)
         }
+        .sheet(isPresented: $showPaywall) { PaywallView() }
+        .manageSubscriptionsSheet(isPresented: $showManageSubscription)
         .sheet(isPresented: $showRanking) {
             RankingView(places: allPlaces.map { $0 }, members: members, filter: filter)
         }
@@ -368,6 +374,17 @@ struct ContentView: View {
                 Button { showCalendarSettings = true } label: { Label("カレンダー連携", systemImage: "calendar.badge.plus") }
                 Button { showRanking = true } label: { Label("ランキング", systemImage: "trophy") }
                 Divider()
+                // プレミアムの入口(以前は写真の上限に当たったときしか出ず、購入の復元も探せなかった)
+                if store.isPremium {
+                    Button { showManageSubscription = true } label: {
+                        Label("プレミアム(加入中)", systemImage: "crown.fill")
+                    }
+                } else if SharedPremium.isActive(log) {
+                    Button {} label: { Label("プレミアム(共有で利用中)", systemImage: "crown.fill") }
+                        .disabled(true)
+                } else {
+                    Button { showPaywall = true } label: { Label("プレミアム", systemImage: "crown") }
+                }
                 Button { showHelp = true } label: { Label("使い方", systemImage: "questionmark.circle") }
             } label: {
                 Image(systemName: "ellipsis")
@@ -453,6 +470,10 @@ struct ContentView: View {
             }
             .mapStyle(.standard(elevation: .flat, emphasis: .muted,
                                 pointsOfInterest: .excludingAll, showsTraffic: false))
+            // 上のヘッダー・絞り込みボタンと下のタブバーに隠れない範囲で表示する
+            // (以前は札幌などのピンがボタンの下に隠れていた)
+            .safeAreaPadding(.top, 100)
+            .safeAreaPadding(.bottom, 90)
             .task(id: mapColorKey) {
                 let jp = filtered.filter(\.isJapan).map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
                 let ov = CountryResolver.inputs(of: filtered)

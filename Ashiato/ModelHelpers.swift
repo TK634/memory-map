@@ -112,7 +112,8 @@ enum RegionFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .all: return String(localized: "すべて")
+        // メンバー絞り込みの「すべて」と区別できるよう、地域側は「国内+海外」と書く
+        case .all: return AppRegion.homeLabel + "+" + AppRegion.abroadLabel
         case .jp: return AppRegion.homeLabel
         case .ov: return AppRegion.abroadLabel
         }
