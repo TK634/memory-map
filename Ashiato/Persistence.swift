@@ -69,6 +69,20 @@ final class PersistenceController {
         }
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+
+        #if DEBUG
+        // 開発専用: 起動引数 -initCloudKitSchema で、全エンティティ・全項目を CloudKit の
+        // 開発環境に一括登録する。本番へ Deploy する前に、iCloudにサインインした実機で一度だけ実行する。
+        // (実際に保存したことのない項目は開発環境に無く、そのまま本番へ反映すると同期に失敗するため)
+        if isCloudEnabled, ProcessInfo.processInfo.arguments.contains("-initCloudKitSchema") {
+            do {
+                try container.initializeCloudKitSchema(options: [])
+                print("[Persistence] CloudKitスキーマを開発環境に登録しました")
+            } catch {
+                print("[Persistence] CloudKitスキーマの登録に失敗: \(error)")
+            }
+        }
+        #endif
     }
 
     // MARK: - ルート TravelLog の取得(なければ作成)
