@@ -3,6 +3,16 @@
 App Store Connect(https://appstoreconnect.apple.com)で、上から順に入力する。
 説明文・キーワード等は `metadata.md` を参照。
 
+## 画面への直接リンク(Apple ID: 6821633516)
+
+ウインドウ幅が狭いとサイドバーが隠れるため、URLで直接開くと早い。
+
+- バージョン1.0: https://appstoreconnect.apple.com/apps/6821633516/distribution/ios/version/inflight
+- アプリ情報: https://appstoreconnect.apple.com/apps/6821633516/distribution/info
+- 価格および配信状況: https://appstoreconnect.apple.com/apps/6821633516/distribution/pricing
+- Appのプライバシー: https://appstoreconnect.apple.com/apps/6821633516/distribution/privacy
+- サブスクリプション: https://appstoreconnect.apple.com/apps/6821633516/distribution/subscriptions
+
 ---
 
 ## 0. 事前準備: 有料App契約・口座・税務(サブスク販売に必須)
