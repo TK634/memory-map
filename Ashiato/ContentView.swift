@@ -156,6 +156,7 @@ struct ContentView: View {
             Task { await CountryBackfill.run(context: context) }
             #if DEBUG
             DemoSeeder.seedIfRequested(context: context, log: log)
+            StoreScreenshotSeeder.seedIfRequested(context: context, log: log)
             // 検証用: カレンダーで日付をタップしたときの流れを再現
             if ProcessInfo.processInfo.arguments.contains("-demoTapDate") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -202,7 +203,9 @@ struct ContentView: View {
                 // 記録画面の見た目確認用: 最初のピンの編集画面を開く
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     showOnboarding = false
-                    editingPlace = allPlaces.first { $0.name == (ProcessInfo.processInfo.arguments.contains("-openPhotoPlace") ? "那覇" : "東京") } ?? allPlaces.first
+                    let target = StoreScreenshotSeeder.isRequested ? "立山・雄山"
+                        : (ProcessInfo.processInfo.arguments.contains("-openPhotoPlace") ? "那覇" : "東京")
+                    editingPlace = allPlaces.first { $0.name == target } ?? allPlaces.first
                 }
             }
             if DemoSeeder.shouldShowAchievements {
