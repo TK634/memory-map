@@ -350,14 +350,14 @@ struct AddEditPlaceView: View {
                         }
                     }
                 }
-                dateRow(icon: "figure.walk.departure", label: "行った日",
+                dateRow(icon: "figure.walk.departure", label: hasEndDate ? "着いた日" : "行った日",
                         selection: Binding(get: { visitDate ?? Date() },
                                            set: { visitDate = $0
                                                   year = Calendar.current.component(.year, from: $0)
                                                   if let e = visitEndDate, e < $0 { visitEndDate = $0 } }),
                         from: nil)
                 if hasEndDate {
-                    dateRow(icon: "house.fill", label: "帰った日",
+                    dateRow(icon: "moon.zzz.fill", label: "発った日",
                             selection: Binding(get: { visitEndDate ?? visitDate ?? Date() },
                                                set: { visitEndDate = $0 }),
                             from: visitDate ?? Date())
@@ -1044,8 +1044,7 @@ struct AddEditPlaceView: View {
         p.visitorIDList = Array(selectedIDs)
         // 旅の画面から追加した場所は、その日の最後に入れる
         if place == nil, let trip, p.trip == nil {
-            p.tripOrder = trip.nextOrder(on: trip.day(of: p))
-            p.trip = trip
+            trip.append(p)
         }
         if place == nil, trip == nil { Trip.autoJoin(p, in: context) }
         // 次回の初期選択用に記憶(新規登録時のみ)

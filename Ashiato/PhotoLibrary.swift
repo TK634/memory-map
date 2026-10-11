@@ -81,10 +81,28 @@ struct AlbumView: View {
         var id: Int { index }
     }
 
-    /// 写真のある場所(行った日の新しい順)
-    private var albums: [Place] {
-        places.filter { !$0.photoAttachments.isEmpty }
-            .sorted { ($0.visitDate ?? $0.createdAt ?? .distantPast) > ($1.visitDate ?? $1.createdAt ?? .distantPast) }
+    /// アルバムの単位。旅に入っている場所は旅の1冊にまとめる
+    enum Entry: Identifiable {
+        case trip(Trip)
+        case place(Place)
+        var id: NSManagedObjectID {
+            switch self { case .trip(let t): t.objectID; case .place(let p): p.objectID }
+        }
+        var date: Date {
+            switch self {
+            case .trip(let t): t.startDate ?? t.createdAt ?? .distantPast
+            case .place(let p): p.visitDate ?? p.createdAt ?? .distantPast
+            }
+        }
+    }
+
+    /// 写真のある旅・場所(行った日の新しい順)
+    private var albums: [Entry] {
+        let withPhotos = places.filter { !$0.photoAttachments.isEmpty }
+        var seen = Set<NSManagedObjectID>()
+        let trips = withPhotos.compactMap(\.trip).filter { !$0.isDeleted && seen.insert($0.objectID).inserted }
+        let loose = withPhotos.filter { $0.trip == nil || $0.trip?.isDeleted == true }
+        return (trips.map(Entry.trip) + loose.map(Entry.place)).sorted { $0.date > $1.date }
     }
 
     var body: some View {
@@ -98,20 +116,30 @@ struct AlbumView: View {
                         Text("まだ写真がありません")
                             .font(.system(size: 17, weight: .heavy, design: .rounded))
                             .foregroundStyle(AppPalette.chrome)
-                        Text("記録画面から写真を追加すると、行った場所ごとのアルバムになります。")
+                        Text("記録画面から写真を追加すると、旅や行った場所ごとのアルバムになります。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
                                   spacing: 14) {
-                            ForEach(list, id: \.objectID) { p in
-                                NavigationLink {
-                                    PlaceAlbumView(place: p, openPlace: openPlace)
-                                } label: {
-                                    AlbumCard(place: p)
+                            ForEach(list) { entry in
+                                switch entry {
+                                case .trip(let t):
+                                    NavigationLink {
+                                        TripAlbumView(trip: t, openPlace: openPlace)
+                                    } label: {
+                                        TripAlbumCard(trip: t)
+                                    }
+                                    .buttonStyle(PressableStyle())
+                                case .place(let p):
+                                    NavigationLink {
+                                        PlaceAlbumView(place: p, openPlace: openPlace)
+                                    } label: {
+                                        AlbumCard(place: p)
+                                    }
+                                    .buttonStyle(PressableStyle())
                                 }
-                                .buttonStyle(PressableStyle())
                             }
                         }
                         .padding(.horizontal, 16)
@@ -167,6 +195,143 @@ private struct AlbumCard: View {
                 }
             }
             .padding(.horizontal, 2)
+        }
+    }
+}
+
+/// 旅のアルバムの表紙(旅の名前・期間・枚数)
+private struct TripAlbumCard: View {
+    @ObservedObject var trip: Trip
+
+    var body: some View {
+        let count = trip.placeList.reduce(0) { $0 + $1.photoAttachments.count }
+        VStack(alignment: .leading, spacing: 6) {
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    if let cover = trip.coverPhoto { PhotoThumb(attachment: cover, pixel: 400) }
+                }
+                .clipped()
+                .overlay(alignment: .topLeading) {
+                    Label("旅", systemImage: "suitcase.fill")
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(AppPalette.accent, in: Capsule())
+                        .padding(7)
+                }
+                .overlay(alignment: .topTrailing) {
+                    Label("\(count)", systemImage: "photo.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(.black.opacity(0.45), in: Capsule())
+                        .padding(7)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(trip.displayName)
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .foregroundStyle(AppPalette.chrome)
+                    .lineLimit(1)
+                Text("\(trip.periodText) · \(trip.placeList.count)か所")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+}
+
+/// 旅のアルバム。旅の順番どおり、日ごと・場所ごとに写真を並べる
+struct TripAlbumView: View {
+    @ObservedObject var trip: Trip
+    /// 場所の記録を開く(旅の画面から開いたときは nil = 写真を見るだけ)
+    var openPlace: ((Place) -> Void)? = nil
+    @State private var viewer: AlbumView.AlbumViewerTarget?
+
+    /// 旅の順(場所の行った順 → 場所の中は古い順)の全写真
+    private var items: [AlbumView.Item] {
+        trip.orderedPlaces.flatMap { p in
+            p.photoAttachments.reversed().map { AlbumView.Item(att: $0, place: p) }
+        }
+    }
+
+    var body: some View {
+        let list = items
+        let days = trip.days
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 6) {
+                    Label(trip.periodText, systemImage: "calendar")
+                    Spacer()
+                    Text("\(list.count)枚")
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+
+                ForEach(Array(days.enumerated()), id: \.element) { i, day in
+                    let placesWithPhotos = trip.places(on: day).filter { !$0.photoAttachments.isEmpty }
+                    if !placesWithPhotos.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("\(i + 1)日目  \(day.formatted(.dateTime.month().day().weekday(.abbreviated).locale(AppRegion.preferredLocale)))")
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundStyle(AppPalette.chrome)
+                            ForEach(placesWithPhotos, id: \.objectID) { p in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Button { openPlace?(p) } label: {
+                                        HStack(spacing: 6) {
+                                            RouteNumberBadge(number: (trip.orderedPlaces.firstIndex(of: p) ?? 0) + 1, size: 20)
+                                            Text(p.name ?? "").font(.subheadline.bold())
+                                                .foregroundStyle(AppPalette.chrome)
+                                            if openPlace != nil {
+                                                Image(systemName: "chevron.right")
+                                                    .font(.caption2.bold()).foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(openPlace == nil)
+                                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3), spacing: 3) {
+                                        ForEach(p.photoAttachments.reversed(), id: \.objectID) { att in
+                                            Button {
+                                                if let idx = list.firstIndex(where: { $0.att.objectID == att.objectID }) {
+                                                    viewer = AlbumView.AlbumViewerTarget(index: idx)
+                                                }
+                                            } label: {
+                                                Color.clear
+                                                    .aspectRatio(1, contentMode: .fit)
+                                                    .overlay(PhotoThumb(attachment: att, pixel: 300))
+                                                    .clipped()
+                                                    .overlay { if att.isVideo { PlayBadge(size: 28) } }
+                                            }
+                                            .buttonStyle(PressableStyle())
+                                        }
+                                    }
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
+                            }
+                        }
+                    }
+                }
+                if list.isEmpty {
+                    Text("この旅にはまだ写真がありません。行った場所の記録から写真を追加すると、ここにまとまります。")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .padding(.top, 20)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .background(AppStyle.background)
+        .navigationTitle(trip.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(item: $viewer) { t in
+            AlbumPhotoViewer(items: list, index: t.index) { p in
+                viewer = nil
+                openPlace?(p)
+            }
         }
     }
 }

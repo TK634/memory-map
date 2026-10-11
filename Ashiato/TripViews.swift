@@ -74,6 +74,43 @@ extension Trip {
         orderedPlaces.filter { self.day(of: $0) == day }
     }
 
+    /// 旅に場所を加える。その日に泊まった宿(泊まりの記録)は日の最後に、
+    /// 観光地などは宿の前に入れる(宿に着くのはふつうその日の最後のため)
+    func append(_ p: Place) {
+        let d = day(of: p)
+        var list = places(on: d).filter { $0 != p }
+        if p.visitEndDate != nil {
+            list.append(p)
+        } else {
+            let firstStay = list.firstIndex { $0.visitEndDate != nil } ?? list.count
+            list.insert(p, at: firstStay)
+        }
+        p.trip = self
+        for (i, x) in list.enumerated() { x.tripOrder = Int32(i) }
+    }
+
+    /// その日に「宿を発つ」泊まりの記録(前の日以前に着いて、この日に発つ)
+    func departures(on d: Date) -> [Place] {
+        orderedPlaces.filter { p in
+            guard let e = p.visitEndDate else { return false }
+            return day(of: p) < d && cal.startOfDay(for: e) == d
+        }
+    }
+
+    /// その日も「続けて泊まっている」泊まりの記録(連泊の中日)
+    func stayingOver(on d: Date) -> [Place] {
+        orderedPlaces.filter { p in
+            guard let e = p.visitEndDate else { return false }
+            return day(of: p) < d && cal.startOfDay(for: e) > d
+        }
+    }
+
+    /// 家に帰った日(旅の最終日)
+    func isHomecoming(_ d: Date) -> Bool {
+        guard let s = startDate, let e = endDate, !cal.isDate(s, inSameDayAs: e) else { return false }
+        return cal.isDate(d, inSameDayAs: e)
+    }
+
     /// その日の最後に追加するときの順番
     func nextOrder(on day: Date) -> Int32 {
         (places(on: day).map(\.tripOrder).max() ?? -1) + 1
@@ -124,8 +161,7 @@ extension Trip {
                 < (($1.visitDate ?? .distantPast), ($1.createdAt ?? .distantPast))
         }
         for p in found where t.isForMembers(p) {
-            p.tripOrder = t.nextOrder(on: t.day(of: p))
-            p.trip = t
+            t.append(p)
         }
         try? context.save()
         return t
@@ -144,8 +180,7 @@ extension Trip {
         guard p.trip == nil, let log = p.log, let date = p.visitDate else { return }
         let trips = ((log.trips as? Set<Trip>) ?? []).filter { !$0.isDeleted && $0.covers(date) && $0.isForMembers(p) }
         guard trips.count == 1, let t = trips.first else { return }
-        p.tripOrder = t.nextOrder(on: t.day(of: p))
-        p.trip = t
+        t.append(p)
     }
 
     /// 期間内にあって、この旅にまだ入っていない記録(メンバーが行ったもの)
@@ -515,9 +550,43 @@ struct TripDetailView: View {
             }
 
             let allDays = trip.days
-            let emptyDays = allDays.filter { trip.places(on: $0).isEmpty }
+            let emptyDays = allDays.filter {
+                trip.places(on: $0).isEmpty && trip.departures(on: $0).isEmpty
+                    && trip.stayingOver(on: $0).isEmpty && !trip.isHomecoming($0)
+            }
+            let tripPhotos = ordered.flatMap(\.photoAttachments)
+            if !tripPhotos.isEmpty {
+                Section {
+                    NavigationLink {
+                        TripAlbumView(trip: trip)
+                    } label: {
+                        HStack(spacing: 10) {
+                            HStack(spacing: -10) {
+                                ForEach(Array(tripPhotos.prefix(4).enumerated()), id: \.offset) { _, att in
+                                    PhotoThumb(attachment: att, pixel: 120)
+                                        .frame(width: 38, height: 38)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(.white, lineWidth: 2))
+                                }
+                            }
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("この旅のアルバム").font(.subheadline.bold()).foregroundStyle(AppPalette.chrome)
+                                Text("\(tripPhotos.count)枚の写真を、行った順に")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+
             ForEach(Array(allDays.enumerated()).filter { !emptyDays.contains($0.element) }, id: \.element) { i, day in
                 Section {
+                    ForEach(trip.departures(on: day), id: \.objectID) { p in
+                        stayNote("🏨", String(localized: "「\(p.name ?? "")」を発つ"))
+                    }
+                    ForEach(trip.stayingOver(on: day), id: \.objectID) { p in
+                        stayNote("🌙", String(localized: "「\(p.name ?? "")」に連泊"))
+                    }
                     ForEach(trip.places(on: day), id: \.objectID) { p in
                         placeRow(p, number: (ordered.firstIndex(of: p) ?? 0) + 1)
                             .swipeActions {
@@ -525,6 +594,9 @@ struct TripDetailView: View {
                             }
                     }
                     .onMove { from, to in move(on: day, from: from, to: to) }
+                    if trip.isHomecoming(day) {
+                        stayNote("🏠", String(localized: "家に帰った日"))
+                    }
                     Button { addRequest = AddRequest(day: day) } label: {
                         Label("この日に行った場所を追加", systemImage: "plus.circle.fill")
                             .font(.subheadline.bold())
@@ -724,10 +796,22 @@ struct TripDetailView: View {
         .buttonStyle(.plain)   // List の中だと文字までアクセント色になるため
     }
 
-    /// 「全員一緒 · 泊まり · 写真5枚」のような1行の説明
+    /// 宿を発つ・連泊・帰宅などの、番号の付かない説明の行
+    private func stayNote(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 10) {
+            Text(icon).frame(width: 24)
+            Text(text).font(.subheadline).foregroundStyle(.secondary)
+        }
+        .moveDisabled(true)
+    }
+
+    /// 「全員一緒 · 泊まり(〜7/11) · 写真5枚」のような1行の説明
     private func rowDetail(_ p: Place) -> String {
         var parts = [p.whoLabel(members: members)]
-        if p.visitEndDate != nil { parts.append(String(localized: "泊まり")) }
+        if let e = p.visitEndDate {
+            let until = e.formatted(.dateTime.month().day().locale(AppRegion.preferredLocale))
+            parts.append(String(localized: "泊まり(\(until)に発つ)"))
+        }
         let n = p.photoAttachments.count
         if n > 0 { parts.append(String(localized: "写真\(n)枚")) }
         return parts.joined(separator: " · ")
@@ -754,8 +838,7 @@ struct TripDetailView: View {
     }
 
     private func addToTrip(_ p: Place) {
-        p.tripOrder = trip.nextOrder(on: trip.day(of: p))
-        p.trip = trip
+        trip.append(p)
         try? context.save()
     }
 

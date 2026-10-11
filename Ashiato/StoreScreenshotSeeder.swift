@@ -48,7 +48,7 @@ enum StoreScreenshotSeeder {
              ["09_mikurigaike_wide.jpg", "08_mikurigaike_sign.jpg"], ["池が鏡みたいだった"]),
             ("信濃大町のおそば屋さん", 36.5030, 137.8510, true, day(2026, 10, 4), nil, both,
              ["10_soba.jpg"], ["下山後のおろしそば、最高"]),
-            ("上高地・大正池", 36.2187, 137.6366, true, day(2026, 10, 5), nil, both,
+            ("上高地・大正池", 36.2187, 137.6366, true, day(2026, 10, 4), day(2026, 10, 5), both,
              ["11_taishoike.jpg", "12_azusagawa.jpg"], []),
             ("箱根", 35.2324, 139.1069, true, day(2026, 9, 21), day(2026, 9, 22), both, [], ["温泉でのんびり"]),
             ("江の島", 35.2993, 139.4800, true, day(2026, 9, 12), nil, [hana], [], []),

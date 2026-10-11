@@ -162,7 +162,7 @@ struct CalendarSettingsView: View {
                     Toggle(isOn: Binding(get: { importOn }, set: { on in setImport(on) })) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("📅 カレンダーの予定を候補に出す").font(.subheadline.bold())
-                            Text("日付をタップしたとき、iPhoneのカレンダーのその日の予定から記録できます。泊まりの予定なら帰った日も入ります。")
+                            Text("日付をタップしたとき、iPhoneのカレンダーのその日の予定から記録できます。泊まりの予定なら発った日も入ります。")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
