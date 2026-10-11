@@ -42,6 +42,9 @@ struct AddEditPlaceView: View {
     @State private var importedCount = 0    // 取り込み済み枚数
     @State private var isLoaded = false     // load完了後だけ自動保存する
     @State private var showDeleteConfirm = false
+    /// 保存済みの写真が増減したら加算する。place は監視対象(@ObservedObject)ではないため、
+    /// これが無いと削除しても一覧・拡大表示が描き直されず、×を押し直すと別の写真が消えていた
+    @State private var savedPhotosVersion = 0
 
     /// 保存されていない入力があるか(誤って閉じて消えるのを防ぐ判定)
     private var hasUnsavedInput: Bool {
@@ -90,6 +93,7 @@ struct AddEditPlaceView: View {
 
     /// 既存の写真(新しい順)
     private var existingPhotos: [Attachment] {
+        _ = savedPhotosVersion
         guard let set = place?.attachments as? Set<Attachment> else { return [] }
         return set.filter { $0.imageData != nil }
             .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
@@ -151,7 +155,18 @@ struct AddEditPlaceView: View {
             }
             // 既存の記録は入力が変わるたび自動保存(保存ボタンを押し忘れても消えない)
             .onChange(of: formSignature) { _, _ in autosave() }
-            .onChange(of: photoItems) { _, items in Task { await importPickedPhotos(items) } }
+            .onChange(of: photoItems) { _, items in
+                guard !items.isEmpty else { return }
+                // 受け取った時点で選択を空に戻す。残っていると次に開いたとき前回分が選択済みになり、
+                // 新しく選んだ写真と一緒にもう一度取り込まれていた(選んでいない写真が増える不具合)
+                photoItems = []
+                Task { await importPickedPhotos(items) }
+            }
+            // 保存済みの写真の追加・削除(共有相手の変更も含む)を画面に反映する
+            .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextObjectsDidChange,
+                                                            object: context)) { _ in
+                savedPhotosVersion &+= 1
+            }
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .fullScreenCover(item: $playingVideo) { v in VideoPlayerScreen(data: v.data) }
             .confirmationDialog("入力した内容を破棄しますか?", isPresented: $showDiscardConfirm,
@@ -504,6 +519,7 @@ struct AddEditPlaceView: View {
             guard i < existingPhotos.count else { return }
             context.delete(existingPhotos[i])
             try? context.save()
+            savedPhotosVersion &+= 1
         }
     }
 
@@ -679,7 +695,9 @@ struct AddEditPlaceView: View {
                 }
             } else {
                 photoGrid
-                if canAddMorePhotos {
+                if importingCount > 0 {
+                    EmptyView()   // 読み込みが終わるまで追加は受け付けない
+                } else if canAddMorePhotos {
                     PhotosPicker(selection: $photoItems, maxSelectionCount: pickerLimit, matching: pickerFilter) {
                         Label(remainingPhotoSlots.map { String(localized: "写真を追加(あと\($0)枚)") }
                                 ?? String(localized: "写真を追加"),
@@ -830,7 +848,9 @@ struct AddEditPlaceView: View {
 
     /// 追加予定+保存済みの全写真
     private var allPhotoImages: [UIImage] {
-        pendingImages.compactMap(UIImage.init(data:)) + existingPhotos.compactMap(\.image)
+        // compactMap で落とすと表示と通し番号がずれ、別の写真を消してしまうため、失敗時も枠は残す
+        let blank = UIImage(systemName: "photo") ?? UIImage()
+        return pendingImages.map { UIImage(data: $0) ?? blank } + existingPhotos.map { $0.image ?? blank }
     }
 
     private func importPickedPhotos(_ items: [PhotosPickerItem]) async {
@@ -876,7 +896,6 @@ struct AddEditPlaceView: View {
         pendingImages.append(contentsOf: picked.map(\.1))
         pendingVideos.append(contentsOf: picked.map(\.2))
         importedCount = 0
-        photoItems = []
         // 既存の記録なら選んだ時点で保存(保存ボタンを押さなくても反映される)
         if place != nil { commitPendingAttachments() }
     }
