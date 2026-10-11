@@ -17,6 +17,8 @@ struct TravelCalendarView: View {
     var onOpenTrip: ((Trip) -> Void)? = nil
     /// 日の詳細シートを閉じたあとに開く旅
     @State private var tripAfterDismiss: Trip?
+    /// いちばん上に出すお知らせ(iCloud未サインインの案内など)
+    var topNotice: AnyView? = nil
 
     @State private var selectedDay: DaySelection?
     /// 旅の期間を選んでいる途中か
@@ -83,6 +85,7 @@ struct TravelCalendarView: View {
         let map = buildDayMap()
         ScrollView {
             LazyVStack(spacing: 18, pinnedViews: []) {
+                if let topNotice { topNotice }
                 summaryCard
                 if onCreateTrip != nil { tripCard }
                 legend

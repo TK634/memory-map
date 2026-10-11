@@ -75,6 +75,16 @@ struct ContentView: View {
     @State private var tab: MainTab = .calendar
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @AppStorage("myMemberID") private var myMemberID = ""
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var icloud = ICloudStatus.shared
+    /// iCloudの案内カードを「あとで」にした期限
+    @AppStorage("iCloudNoticeSnoozedUntil") private var iCloudNoticeSnoozedUntil: Double = 0
+    /// iCloudのサインイン案内(理由つき。共有しようとしたときなど)
+    struct ICloudGuideRequest: Identifiable {
+        let id = UUID()
+        let reason: String?
+    }
+    @State private var iCloudGuide: ICloudGuideRequest?
     @State private var showWhoAmI = false
     @State private var hasSeenWhoAmIPromptThisLaunch = false
     @AppStorage("memoryCardDismissedDate") private var memoryCardDismissedDate = ""
@@ -105,6 +115,13 @@ struct ContentView: View {
     private var needsWhoAmI: Bool {
         members.count >= 2 && !members.contains { $0.id?.uuidString == myMemberID }
     }
+    /// iCloud未サインインの案内カードを出すか(「あとで」から7日間は出さない)
+    private var showsICloudNotice: Bool {
+        #if DEBUG
+        if StoreScreenshotSeeder.isRequested { return false }   // ストア用の撮影では出さない
+        #endif
+        return icloud.needsGuide && Date().timeIntervalSince1970 > iCloudNoticeSnoozedUntil
+    }
     private var whoAmIKey: String { "\(members.count)-\(myMemberID)-\(showOnboarding)" }
     private var members: [Member] { Array(allMembers) }
     private var filtered: [Place] { allPlaces.filter { filter.matches($0, members: members) } }
@@ -128,7 +145,14 @@ struct ContentView: View {
                                    onCreateTrip: { s, e in
                                        newTripRange = TripRange(start: s, end: e)
                                    },
-                                   onOpenTrip: { t in openedTrip = t })
+                                   onOpenTrip: { t in openedTrip = t },
+                                   topNotice: showsICloudNotice ? AnyView(ICloudNoticeCard(
+                                       onOpen: { iCloudGuide = ICloudGuideRequest(reason: nil) },
+                                       onDismiss: {
+                                           withAnimation {
+                                               iCloudNoticeSnoozedUntil = Date().addingTimeInterval(7 * 24 * 3600).timeIntervalSince1970
+                                           }
+                                       })) : nil)
                 .ignoresSafeArea(edges: .bottom)
             }
             VStack(spacing: 8) {
@@ -312,6 +336,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showPaywall) { PaywallView() }
         .sheet(isPresented: $showWhoAmI) { WhoAmISheet(members: members.map { $0 }) }
+        .sheet(item: $iCloudGuide) { req in ICloudGuideSheet(reason: req.reason) }
+        // 起動時と、設定アプリから戻ってきたときにiCloudの状態を確認する
+        .task { await icloud.refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await icloud.refresh() } }
+        }
         // メンバーが2人以上(共有に参加した直後など)で「自分」が未設定なら聞く
         .task(id: whoAmIKey) {
             try? await Task.sleep(for: .seconds(1.2))
@@ -359,7 +389,14 @@ struct ContentView: View {
             tab = .calendar
         }
         .onReceive(NotificationCenter.default.publisher(for: .shareJoinFailed)) { note in
-            shareError = (note.object as? String) ?? String(localized: "参加できませんでした。")
+            Task {
+                await icloud.refresh()
+                if icloud.isAvailable {
+                    shareError = (note.object as? String) ?? String(localized: "参加できませんでした。")
+                } else {
+                    iCloudGuide = ICloudGuideRequest(reason: String(localized: "招待に参加するには、iCloudへのサインインが必要です。サインインしてから、もう一度招待リンクを開いてください。"))
+                }
+            }
         }
         .alert("参加しました 🎉", isPresented: Binding(
             get: { joinedMessage != nil }, set: { if !$0 { joinedMessage = nil } })) {
@@ -638,6 +675,11 @@ struct ContentView: View {
     }
 
     private func prepareShare() async {
+        await icloud.refresh()
+        guard icloud.isAvailable else {
+            iCloudGuide = ICloudGuideRequest(reason: String(localized: "恋人や家族を招待するには、iCloudへのサインインが必要です。"))
+            return
+        }
         isPreparingInvite = true
         defer { isPreparingInvite = false }
         do {
