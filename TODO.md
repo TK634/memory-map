@@ -9,7 +9,7 @@ iPhoneアプリ「あしあと」をApp Storeでリリースするまでのタ�
 出し直しの手順:
 - [x] データモデル版2(Trip 追加)。実機の版1データからの移行を確認済み
 - [x] 実機で -initCloudKitSchema 実行済み(開発環境に Trip 等を登録)
-- [ ] CloudKit Console で Deploy Schema Changes(本番へ。CD_Trip・Place.trip/tripOrder 等)
+- [x] CloudKit Console で Deploy Schema Changes(本番へ。2026-10-12)
 - [ ] 実機(iPhone 11)で写真の追加・削除、旅の作成を確認
 - [x] 1.0 (2) をアップロード(2026-10-12 13:46)
 - [ ] バージョン1.0のビルドを (1) → (2) に差し替え
