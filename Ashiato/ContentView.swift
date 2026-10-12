@@ -27,6 +27,8 @@ struct ContentView: View {
         let coord: CLLocationCoordinate2D
         let date: Date?
         var endDate: Date? = nil
+        /// 「続けて次の場所」で来たときの前の場所
+        var previous: Place? = nil
     }
     @State private var addPlace: PendingPlace?
     @State private var editingPlace: Place?
@@ -34,16 +36,12 @@ struct ContentView: View {
     @State private var showRanking = false
     @State private var showPaywall = false
     @State private var showTrips = false
-    /// カレンダーで期間を選んで作った旅(作った直後に開く)
+    /// 開いている旅
     @State private var openedTrip: Trip?
-    /// カレンダーで選んだ旅の期間(名前とメンバーを決める画面を開く)
-    struct TripRange: Identifiable {
-        let id = UUID()
-        let start: Date
-        let end: Date
-    }
-    @State private var newTripRange: TripRange?
-    @State private var createdTrip: Trip?
+    /// 記録画面を閉じたあとに、続けて次の場所を記録する(前の場所)
+    @State private var continueFrom: Place?
+    /// 記録画面を閉じたあとに開く旅
+    @State private var tripAfterEdit: Trip?
     @State private var showManageSubscription = false
     @State private var showList = false
     @State private var showShare = false
@@ -61,9 +59,10 @@ struct ContentView: View {
     struct AddSearchRequest: Identifiable {
         let id = UUID()
         let date: Date?
+        var previous: Place? = nil
     }
     @State private var addSearch: AddSearchRequest?
-    @State private var pendingAdd: (name: String, coord: CLLocationCoordinate2D, date: Date?, endDate: Date?)?
+    @State private var pendingAdd: (name: String, coord: CLLocationCoordinate2D, date: Date?, endDate: Date?, previous: Place?)?
     @State private var showCalendarSettings = false
     @State private var showHelp = false
     @State private var showOnboarding = false
@@ -142,9 +141,6 @@ struct ContentView: View {
                                    },
                                    onOpenAlbum: { showAlbum = true },
                                    onSelectPlace: { p in editingPlace = p },
-                                   onCreateTrip: { s, e in
-                                       newTripRange = TripRange(start: s, end: e)
-                                   },
                                    onOpenTrip: { t in openedTrip = t },
                                    topNotice: showsICloudNotice ? AnyView(ICloudNoticeCard(
                                        onOpen: { iCloudGuide = ICloudGuideRequest(reason: nil) },
@@ -297,18 +293,22 @@ struct ContentView: View {
                 pendingAdd = nil
                 camera = .region(MKCoordinateRegion(center: p.coord,
                                                     latitudeDelta: 1.5, longitudeDelta: 1.5))
-                addPlace = PendingPlace(name: p.name, coord: p.coord, date: p.date, endDate: p.endDate)
+                addPlace = PendingPlace(name: p.name, coord: p.coord, date: p.date, endDate: p.endDate,
+                                        previous: p.previous)
             }
         }) { req in
-            AddPlaceSearchView(date: req.date) { name, coord, endDate in
-                pendingAdd = (name, coord, req.date, endDate)
+            AddPlaceSearchView(date: req.date,
+                               note: req.previous.map { String(localized: "「\($0.name ?? "")」のつぎ") }) { name, coord, endDate in
+                pendingAdd = (name, coord, req.date, endDate, req.previous)
                 addSearch = nil
             }
         }
-        .sheet(item: $addPlace) { pending in
+        .sheet(item: $addPlace, onDismiss: continueIfRequested) { pending in
             AddEditPlaceView(log: log, coordinate: pending.coord, place: nil, members: members,
                              initialName: pending.name, initialDate: pending.date,
-                             initialEndDate: pending.endDate)
+                             initialEndDate: pending.endDate,
+                             previous: pending.previous,
+                             onContinue: { p in continueFrom = p })
         }
         .alert("共有できませんでした", isPresented: Binding(
             get: { shareError != nil }, set: { if !$0 { shareError = nil } })) {
@@ -316,10 +316,18 @@ struct ContentView: View {
         } message: {
             Text(shareError ?? "")
         }
-        .sheet(item: $editingPlace) { place in
+        .sheet(item: $editingPlace, onDismiss: {
+            if let t = tripAfterEdit {
+                tripAfterEdit = nil
+                openedTrip = t
+            }
+            continueIfRequested()
+        }) { place in
             AddEditPlaceView(log: log,
                              coordinate: .init(latitude: place.latitude, longitude: place.longitude),
-                             place: place, members: members)
+                             place: place, members: members,
+                             onContinue: { p in continueFrom = p },
+                             onOpenTrip: { t in tripAfterEdit = t })
         }
         .sheet(isPresented: $showMembers) { MembersView(log: log) }
         .sheet(isPresented: $showCalendarSettings) {
@@ -351,17 +359,6 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showTrips) { TripListView(log: log, members: members) }
-        .sheet(item: $newTripRange, onDismiss: {
-            // 作った旅は、確認画面を閉じてから開く
-            if let t = createdTrip {
-                createdTrip = nil
-                openedTrip = t
-            }
-        }) { r in
-            NewTripSheet(members: members, initialStart: r.start, initialEnd: r.end) { s, e, name, ids in
-                createdTrip = Trip.make(in: context, log: log, start: s, end: e, name: name, memberIDs: ids)
-            }
-        }
         .sheet(item: $openedTrip) { t in
             NavigationStack {
                 TripDetailView(trip: t, log: log, members: members, showsCloseButton: true)
@@ -499,6 +496,14 @@ struct ContentView: View {
                     .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             }
         }
+    }
+
+    /// 「次に行った場所を記録」が押されていたら、前の場所の日(泊まりなら発った日)で検索を開く
+    private func continueIfRequested() {
+        guard let p = continueFrom else { return }
+        continueFrom = nil
+        guard !p.isDeleted else { return }
+        addSearch = AddSearchRequest(date: p.visitEndDate ?? p.visitDate, previous: p)
     }
 
     // MARK: - フローティングメニューバー

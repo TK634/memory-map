@@ -18,6 +18,11 @@ struct AddEditPlaceView: View {
     var initialDate: Date? = nil     // カレンダーで選んだ日
     var initialEndDate: Date? = nil  // 泊まりの予定から来たときの最終日
     var trip: Trip? = nil            // 旅の画面から追加したとき、その旅の最後に入れる
+    var previous: Place? = nil       // 「続けて次の場所」で来たときの前の場所(保存すると同じ旅にまとまる)
+    /// 「次に行った場所を記録」を押したとき(保存・閉じたあとに呼び出し側が検索を開く)
+    var onContinue: ((Place) -> Void)? = nil
+    /// 入っている旅を開く(既存の記録のみ)
+    var onOpenTrip: ((Trip) -> Void)? = nil
 
     @State private var name = ""
     @State private var isJapan = true
@@ -108,9 +113,11 @@ struct AddEditPlaceView: View {
                 AppStyle.background
                 ScrollView {
                     VStack(spacing: 16) {
+                        if let chainText { chainBanner(chainText) }
                         placeHero
                         whoCard
                         whenCard
+                        if place != nil { tripCard }
                         if let place {
                             VStack(alignment: .leading, spacing: 12) {
                                 CardTitle(emoji: "🎉", title: "リアクション")
@@ -460,11 +467,25 @@ struct AddEditPlaceView: View {
 
     /// 新規登録のときだけ出る大きな保存ボタン
     private var saveBar: some View {
-        Button { save() } label: {
-            Label("あしあとを残す", systemImage: "shoeprints.fill")
+        VStack(spacing: 6) {
+            Button { save() } label: {
+                Label("あしあとを残す", systemImage: "shoeprints.fill")
+            }
+            .buttonStyle(PrimaryButtonStyle(enabled: canSave))
+            .disabled(!canSave)
+            // 旅行中に場所を移ったときは、続けて次の場所へ(1つの旅にまとまる)
+            if onContinue != nil && hasDate {
+                Button { save(continuing: true) } label: {
+                    Label("残して、次に行った場所へ", systemImage: "arrow.turn.down.right")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(canSave ? AppPalette.accent : .secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSave)
+            }
         }
-        .buttonStyle(PrimaryButtonStyle(enabled: canSave))
-        .disabled(!canSave)
         .padding(.horizontal, 20)
         .padding(.top, 12)
         .padding(.bottom, 4)
@@ -473,6 +494,77 @@ struct AddEditPlaceView: View {
                            startPoint: .top, endPoint: .center)
                 .ignoresSafeArea()
         )
+    }
+
+    /// 続けて記録しているときの案内(どの旅の何か所目か)
+    private var chainText: String? {
+        guard place == nil else { return nil }
+        if let t = trip ?? previous?.trip {
+            return String(localized: "「\(t.displayName)」の\(t.placeList.count + 1)か所目")
+        }
+        if let prev = previous {
+            return String(localized: "「\(prev.name ?? "")」のつぎに行った場所")
+        }
+        return nil
+    }
+
+    private func chainBanner(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "suitcase.fill")
+            Text(text).lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 13, weight: .bold, design: .rounded))
+        .foregroundStyle(AppPalette.accent)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(AppPalette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// 既存の記録の「旅」: 入っている旅を開く / 次に行った場所を続けて記録する
+    @ViewBuilder
+    private var tripCard: some View {
+        if let place, hasDate, onContinue != nil || (place.trip != nil && onOpenTrip != nil) {
+            VStack(alignment: .leading, spacing: 10) {
+                CardTitle(emoji: "🧳", title: "旅")
+                if let t = place.trip, let onOpenTrip {
+                    Button {
+                        dismiss()
+                        onOpenTrip(t)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t.displayName)
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppPalette.chrome)
+                                Text("\(t.periodText) · \(t.placeList.count)か所")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.bold()).foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                if let onContinue {
+                    Button {
+                        dismiss()
+                        onContinue(place)
+                    } label: {
+                        Label("次に行った場所を記録", systemImage: "plus.circle.fill")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppPalette.accent)
+                    }
+                    .buttonStyle(.plain)
+                    if place.trip == nil {
+                        Text("続けて記録すると、1つの旅にまとまり、地図で道のりがつながります。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
+        }
     }
 
     private var deleteButton: some View {
@@ -996,6 +1088,11 @@ struct AddEditPlaceView: View {
             } else if members.count == 1, let id = members[0].id {
                 selectedIDs = [id]
             }
+            // 続けて記録するときは、前の場所に行った人を初期値にする
+            if let previous {
+                let prevMembers = Set(previous.visitorIDList).intersection(validIDs)
+                if !prevMembers.isEmpty { selectedIDs = prevMembers }
+            }
             // 旅の画面から追加したときは、その旅のメンバーを初期値にする
             if let trip {
                 let tripMembers = Set(trip.memberIDList).intersection(validIDs)
@@ -1025,7 +1122,7 @@ struct AddEditPlaceView: View {
         }
     }
 
-    private func save() {
+    private func save(continuing: Bool = false) {
         let p = place ?? Place(context: context)
         if place == nil {
             p.id = UUID()
@@ -1042,11 +1139,12 @@ struct AddEditPlaceView: View {
         p.visitDate = hasDate ? visitDate : nil
         p.visitEndDate = (hasDate && hasEndDate) ? visitEndDate : nil
         p.visitorIDList = Array(selectedIDs)
-        // 旅の画面から追加した場所は、その日の最後に入れる
-        if place == nil, let trip, p.trip == nil {
-            trip.append(p)
+        // 旅の画面から追加した場所・続けて記録した場所は、その旅に入れる(期間の外なら期間を広げる)
+        if place == nil, p.visitDate != nil,
+           let target = trip ?? previous.flatMap({ Trip.continuing(from: $0, in: context) }) {
+            target.append(p)
         }
-        if place == nil, trip == nil { Trip.autoJoin(p, in: context) }
+        if place == nil, p.trip == nil { Trip.autoJoin(p, in: context) }
         // 次回の初期選択用に記憶(新規登録時のみ)
         if place == nil {
             UserDefaults.standard.set(selectedIDs.map(\.uuidString), forKey: "lastVisitorIDs")
@@ -1089,5 +1187,6 @@ struct AddEditPlaceView: View {
         try? context.save()
         CalendarSync.shared.export(p, members: members)
         dismiss()
+        if continuing { onContinue?(p) }
     }
 }

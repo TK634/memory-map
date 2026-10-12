@@ -77,6 +77,7 @@ extension Trip {
     /// 旅に場所を加える。その日に泊まった宿(泊まりの記録)は日の最後に、
     /// 観光地などは宿の前に入れる(宿に着くのはふつうその日の最後のため)
     func append(_ p: Place) {
+        extendPeriod(toCover: p)
         let d = day(of: p)
         var list = places(on: d).filter { $0 != p }
         if p.visitEndDate != nil {
@@ -87,6 +88,47 @@ extension Trip {
         }
         p.trip = self
         for (i, x) in list.enumerated() { x.tripOrder = Int32(i) }
+    }
+
+    /// 期間の外の場所を加えたら、期間をその場所(泊まりなら発った日)まで広げる。
+    /// 名前が自動の名前のままなら、新しい期間の名前に付け直す
+    private func extendPeriod(toCover p: Place) {
+        guard let v = p.visitDate else { return }
+        let first = cal.startOfDay(for: v)
+        let last = cal.startOfDay(for: max(v, p.visitEndDate ?? v))
+        guard let s = startDate else {
+            startDate = first; endDate = last
+            return
+        }
+        let e = endDate ?? s
+        let newS = min(cal.startOfDay(for: s), first)
+        let newE = max(cal.startOfDay(for: e), last)
+        guard newS != cal.startOfDay(for: s) || newE != cal.startOfDay(for: e) else { return }
+        let wasAuto = name == autoName(start: s, end: e)
+        startDate = newS
+        endDate = newE
+        if wasAuto { name = autoName(start: newS, end: newE) }
+    }
+
+    /// 自動で付ける名前(全員の旅でなければ「ハナの…」と付ける)
+    func autoName(start: Date, end: Date) -> String {
+        let all = ((log?.members as? Set<Member>) ?? []).filter { !$0.isDeleted }
+        let mine = all.filter { m in m.id.map(memberIDList.contains) ?? false }
+            .sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+        let names = (mine.isEmpty || mine.count == all.count) ? [] : mine.map(\.displayName)
+        return Trip.defaultName(start: start, end: end, memberNames: names)
+    }
+
+    /// 「続けて次の場所を記録」したときの旅。前の場所がすでに旅に入っていればその旅、
+    /// なければ前の場所から新しい旅を作る(旅は2か所目を保存した時点ではじめてできる)
+    static func continuing(from prev: Place, in context: NSManagedObjectContext) -> Trip? {
+        if let t = prev.trip, !t.isDeleted { return t }
+        guard let log = prev.log, let v = prev.visitDate else { return nil }
+        let e = max(v, prev.visitEndDate ?? v)
+        let t = make(in: context, log: log, start: v, end: e, name: "", memberIDs: prev.visitorIDList)
+        t.name = t.autoName(start: t.startDate ?? v, end: t.endDate ?? e)
+        if prev.trip == nil { t.append(prev) }
+        return t
     }
 
     /// その日に「宿を発つ」泊まりの記録(前の日以前に着いて、この日に発つ)
@@ -313,7 +355,7 @@ struct TripListView: View {
                         Text("まだ旅がありません")
                             .font(.system(size: 16, weight: .heavy, design: .rounded))
                             .foregroundStyle(AppPalette.chrome)
-                        Text("旅の名前と期間を決めて、行った場所を日ごとに順番に記録できます。カレンダーの「旅をまとめて記録」からも作れます。")
+                        Text("旅の名前と期間を決めて、行った場所を日ごとに順番に記録できます。場所を記録するときに「残して、次に行った場所へ」を押すと、自動で旅にまとまります。")
                             .font(.caption).foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                         Button { showNew = true } label: {
@@ -497,6 +539,8 @@ struct TripDetailView: View {
     @State private var pendingAdd: PendingTripPlace?
     @State private var addPlace: PendingTripPlace?
     @State private var editingPlace: Place?
+    /// 「残して、次に行った場所へ」で保存した場所(閉じたあと、その日で検索を開く)
+    @State private var continueFrom: Place?
     @State private var showPeriod = false
     @State private var showDeleteConfirm = false
 
@@ -705,10 +749,15 @@ struct TripDetailView: View {
                 addRequest = nil
             }
         }
-        .sheet(item: $addPlace) { p in
+        .sheet(item: $addPlace, onDismiss: {
+            if let p = continueFrom, let d = p.visitEndDate ?? p.visitDate {
+                continueFrom = nil
+                addRequest = AddRequest(day: Calendar.current.startOfDay(for: d))
+            }
+        }) { p in
             AddEditPlaceView(log: log, coordinate: p.coord, place: nil, members: members,
                              initialName: p.name, initialDate: p.day, initialEndDate: p.endDate,
-                             trip: trip)
+                             trip: trip, onContinue: { continueFrom = $0 })
         }
         .sheet(item: $editingPlace) { p in
             AddEditPlaceView(log: log,

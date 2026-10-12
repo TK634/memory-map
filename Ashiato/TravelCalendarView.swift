@@ -11,8 +11,6 @@ struct TravelCalendarView: View {
     /// アルバムを開く
     var onOpenAlbum: () -> Void = {}
     var onSelectPlace: (Place) -> Void
-    /// 期間を選んで旅をつくる(始まりの日 → 最後の日の順にタップ)
-    var onCreateTrip: ((Date, Date) -> Void)? = nil
     /// 旅を開く(日の詳細から)
     var onOpenTrip: ((Trip) -> Void)? = nil
     /// 日の詳細シートを閉じたあとに開く旅
@@ -21,10 +19,6 @@ struct TravelCalendarView: View {
     var topNotice: AnyView? = nil
 
     @State private var selectedDay: DaySelection?
-    /// 旅の期間を選んでいる途中か
-    @State private var pickingTrip = false
-    /// 選んだ始まりの日
-    @State private var tripStart: Date?
     @State private var showUndated = false
     /// 日の詳細シートを閉じたあとに登録を始める日
     @State private var addAfterDismiss: Date?
@@ -87,7 +81,6 @@ struct TravelCalendarView: View {
             LazyVStack(spacing: 18, pinnedViews: []) {
                 if let topNotice { topNotice }
                 summaryCard
-                if onCreateTrip != nil { tripCard }
                 legend
                 albumCard
                 ForEach(months(from: map), id: \.self) { month in
@@ -102,7 +95,6 @@ struct TravelCalendarView: View {
             .padding(.top, topInset)
         }
         .background(Color(hex: "FFF8EF"))
-        .overlay(alignment: .bottom) { if pickingTrip { tripPickBanner } }
         .sheet(item: $selectedDay, onDismiss: {
             if let d = addAfterDismiss {
                 addAfterDismiss = nil
@@ -136,71 +128,6 @@ struct TravelCalendarView: View {
             }
             .presentationDetents([.medium])
         }
-    }
-
-    /// 旅をまとめて記録する入口
-    private var tripCard: some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.2)) {
-                pickingTrip = true
-                tripStart = nil
-            }
-        } label: {
-            HStack(spacing: 12) {
-                Text("🧳").font(.system(size: 22))
-                    .frame(width: 38, height: 38)
-                    .background(Color(hex: "FFF1DE"), in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("旅をまとめて記録")
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
-                        .foregroundStyle(AppPalette.chrome)
-                    Text("期間を選んで、行った場所を日ごとに続けて追加")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.bold()).foregroundStyle(.secondary)
-            }
-            .padding(12)
-            .background(.white, in: RoundedRectangle(cornerRadius: 16))
-        }
-        .buttonStyle(PressableStyle())
-    }
-
-    /// 期間を選んでいる間の案内
-    private var tripPickBanner: some View {
-        HStack(spacing: 10) {
-            Text("🧳")
-            VStack(alignment: .leading, spacing: 1) {
-                Text(tripStart == nil ? "旅の始まりの日をタップ" : "旅の最後の日をタップ")
-                    .font(.subheadline.bold())
-                if let s = tripStart {
-                    Text("\(s.formatted(.dateTime.month().day().locale(AppRegion.preferredLocale)))から(同じ日をもう一度タップで日帰り)")
-                        .font(.caption2).opacity(0.85)
-                }
-            }
-            Spacer()
-            Button("やめる") {
-                withAnimation(.easeOut(duration: 0.2)) { pickingTrip = false; tripStart = nil }
-            }
-            .font(.subheadline.bold())
-        }
-        .foregroundStyle(.white)
-        .padding(14)
-        .background(AppPalette.chrome, in: RoundedRectangle(cornerRadius: 16))
-        .padding(.horizontal, 14)
-        .padding(.bottom, 96)   // 下部バーの上
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-    }
-
-    private func pickTripDay(_ date: Date) {
-        guard let start = tripStart else {
-            tripStart = date
-            return
-        }
-        let s = min(start, date), e = max(start, date)
-        withAnimation(.easeOut(duration: 0.2)) { pickingTrip = false; tripStart = nil }
-        onCreateTrip?(s, e)
     }
 
     /// 今年のサマリー
@@ -389,11 +316,8 @@ struct TravelCalendarView: View {
             let v = visitors(of: records)
             return v.isEmpty ? [AppPalette.none] : v.map(\.color)
         }()
-        let isTripStart = pickingTrip && tripStart.map { cal.isDate($0, inSameDayAs: date) } == true
         return Button {
-            if pickingTrip {
-                pickTripDay(date)
-            } else if hasRecord {
+            if hasRecord {
                 selectedDay = DaySelection(date: date)
             } else {
                 onAddOnDate(date)
@@ -401,9 +325,7 @@ struct TravelCalendarView: View {
         } label: {
             VStack(spacing: 3) {
                 ZStack {
-                    if isTripStart {
-                        Circle().fill(AppPalette.accent)
-                    } else if let cover {
+                    if let cover {
                         PhotoThumb(attachment: cover, pixel: 96)
                             .clipShape(Circle())
                             .overlay(Circle().fill(.black.opacity(0.28)))
@@ -417,7 +339,7 @@ struct TravelCalendarView: View {
                     }
                     Text("\(cal.component(.day, from: date))")
                         .font(.system(size: 14, weight: hasRecord ? .heavy : .medium, design: .rounded))
-                        .foregroundStyle(isTripStart || cover != nil ? .white
+                        .foregroundStyle(cover != nil ? .white
                                          : (hasRecord ? AppPalette.chrome : Color.primary.opacity(0.6)))
                 }
                 .frame(width: 32, height: 32)

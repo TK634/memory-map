@@ -10,6 +10,8 @@ struct AddPlaceSearchView: View {
     /// 候補確定時に呼ばれる(場所名, 座標)
     /// カレンダーで選んだ日(見出し表示用)
     var date: Date? = nil
+    /// 続けて記録するときの案内(例:「立山・雄山」のつぎ)
+    var note: String? = nil
     /// 候補確定時(場所名, 座標, 泊まりの予定なら最終日)
     var onSelect: (String, CLLocationCoordinate2D, Date?) -> Void
 
@@ -147,12 +149,19 @@ struct AddPlaceSearchView: View {
     /// 大きな見出し+選んだ日付
     private var hero: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let date {
-                Label(date.jaDateText, systemImage: "calendar")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppPalette.accent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(AppPalette.accent.opacity(0.12), in: Capsule())
+            if date != nil || note != nil {
+                HStack(spacing: 6) {
+                    if let date {
+                        Label(date.jaDateText, systemImage: "calendar")
+                    }
+                    if let note {
+                        Label(note, systemImage: "suitcase.fill").lineLimit(1)
+                    }
+                }
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(AppPalette.accent)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(AppPalette.accent.opacity(0.12), in: Capsule())
             }
             Text("どこに行った?")
                 .font(.system(size: 32, weight: .black, design: .rounded))
