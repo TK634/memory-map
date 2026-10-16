@@ -4,7 +4,7 @@
 
 Hello App Review Team,
 
-Thank you for reviewing Ashiato. Please find the requested information below. A screen recording captured on a physical iPhone running the latest iOS is attached.
+Thank you for reviewing Ashiato. Please find the requested information below. Screen recordings captured on a physical iPhone are attached.
 
 1. Screen recording
 Two recordings captured on a physical iPhone 11 are attached. Both begin with launching the app.
@@ -12,7 +12,7 @@ Two recordings captured on a physical iPhone 11 are attached. Both begin with la
 - Video 2 (about 1 min): the subscription screen ("…" > プレミアム) with the plan, price and free trial, the Terms of Use (Apple standard EULA) and Privacy Policy links, and the purchase flow. The recording was made in the StoreKit sandbox, so the price is shown in USD ($1.99/month); on the Japanese App Store it is ¥300/month.
 - Account registration / login / account deletion: not applicable. The app has no accounts and no sign-in. Data is stored in the user's own iCloud (CloudKit private database).
 - User-generated content: comments, photos and reactions are visible only to people the user explicitly invites with an iCloud share link (CloudKit sharing). There is no public feed, profile, search for other users or contact with strangers. The owner can remove participants or stop sharing at any time from "…" > 共有の管理 (the standard iCloud sharing screen), and participants can leave.
-- Paid content: the subscription screen shows the plan (Premium, monthly, auto-renewing), the price (¥300/month after a 1-week free trial), and links to the Terms of Use (Apple standard EULA) and the Privacy Policy. The system purchase sheet also shows the subscription name, period and price.
+- Paid content: the subscription screen shows the plan (Premium, monthly, auto-renewing), the price (¥300/month after a 1-week free trial), and links to the Terms of Use (Apple standard EULA) and the Privacy Policy.
 
 2. Purpose and target audience
 Ashiato is a travel log for couples, families and friends. Users record the places they have visited on a calendar and a map, and look back on them together. It solves the problem that travel memories are scattered across camera rolls and chats: places, dates, companions, photos and comments are kept in one shared map that both partners can add to.
