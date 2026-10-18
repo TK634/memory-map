@@ -4,7 +4,11 @@
 
 Hello App Review Team,
 
-Thank you for reviewing Ashiato. Please find the requested information below. Screen recordings captured on a physical iPhone are attached.
+Thank you for reviewing Ashiato.
+
+Regarding Guideline 3.1.2: we have added a functional link to the standard Apple Terms of Use (EULA), together with the Privacy Policy link and the subscription details (title, length and price), to the App Description.
+
+Regarding Guideline 2.1 (Information Needed), please find the requested information below. Screen recordings captured on a physical iPhone are attached.
 
 1. Screen recording
 Two recordings captured on a physical iPhone 11 are attached. Both begin with launching the app.
