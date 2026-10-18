@@ -16,10 +16,9 @@ Two recordings captured on a physical iPhone 11 are attached. Both begin with la
 - Video 2 (about 1 min): the subscription screen ("…" > プレミアム) with the plan, price and free trial, the Terms of Use (Apple standard EULA) and Privacy Policy links, and the purchase flow. The recording was made in the StoreKit sandbox, so the price is shown in USD ($1.99/month); on the Japanese App Store it is ¥300/month.
 - Account registration / login / account deletion: not applicable. The app has no accounts and no sign-in. Data is stored in the user's own iCloud (CloudKit private database).
 - User-generated content: comments, photos and reactions are visible only to people the user explicitly invites with an iCloud share link (CloudKit sharing). There is no public feed, profile, search for other users or contact with strangers. The owner can remove participants or stop sharing at any time from "…" > 共有の管理 (the standard iCloud sharing screen), and participants can leave.
-- Paid content: the subscription screen shows the plan (Premium, monthly, auto-renewing), the price (¥300/month after a 1-week free trial), and links to the Terms of Use (Apple standard EULA) and the Privacy Policy.
 
 2. Purpose and target audience
-Ashiato is a travel log for couples, families and friends. Users record the places they have visited on a calendar and a map, and look back on them together. It solves the problem that travel memories are scattered across camera rolls and chats: places, dates, companions, photos and comments are kept in one shared map that both partners can add to.
+Ashiato is a travel log for couples, families and friends. It solves the problem that travel memories are scattered across camera rolls and chats: places, dates, companions, photos and comments are kept in one shared map that both partners can add to.
 
 3. How to use the main features (no login or sample files required)
 - Calendar tab (home): tap a date, search for a place, choose who went, then tap "あしあとを残す" to save.
@@ -31,7 +30,7 @@ Ashiato is a travel log for couples, families and friends. Users record the plac
 - Premium: "…" > プレミアム, or tap "add photo" beyond the free limit (3 photos per place).
 
 4. External services
-Only Apple frameworks are used: iCloud / CloudKit (storage, sync and sharing), MapKit (maps, place search, reverse geocoding), StoreKit (subscription), PhotosUI (photo picker), EventKit (optional export to the Calendar app), UserNotifications (local notifications). No third-party SDKs, analytics, advertising, AI services or servers of our own.
+Apple frameworks only: iCloud / CloudKit (storage, sync and sharing), MapKit (maps, place search, reverse geocoding), StoreKit (subscription), PhotosUI (photo picker), EventKit (optional export to the Calendar app), UserNotifications (local notifications). No third-party SDKs, analytics, ads, AI or own servers.
 
 5. Regional differences
 The app is distributed in Japan only. All features work the same way in every region.
